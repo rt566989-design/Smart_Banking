@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ApexBank PL/SQL - Smart Banking & Fund Transfer System</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'><path d='M2 10h20v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V10zm2-7.5L12 1l8 1.5V8H4V2.5z'/></svg>">
+</head>
+<body>
+
+<div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-container">
+            <div class="logo-badge">⚡</div>
+            <div class="logo-text">
+                <h2>ApexBank</h2>
+                <span>PL/SQL ENGINE</span>
+            </div>
+        </div>
+
+        <nav class="nav-links">
+            <div class="nav-item active" onclick="switchNav('dashboard', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('transfer', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                <span>Fund Transfer</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('transactions', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                <span>Transactions</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('audit', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span>Trigger Audit Log</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('sql', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                <span>SQL Playground</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('interest', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <span>Interest Cursor</span>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-pill">
+                <div class="pulse-dot"></div>
+                <span>Oracle Engine: Online</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-wrapper">
+        <!-- Top Sticky Header -->
+        <header class="top-header">
+            <div class="header-title">
+                <h1 id="pageTitle">Banking Overview</h1>
+                <p id="pageSubtitle">Real-time PL/SQL Transaction Management System</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="openDepositModal()">
+                    <span>➕ Deposit</span>
+                </button>
+                <button class="btn btn-outline" onclick="openWithdrawModal()">
+                    <span>➖ Withdraw</span>
+                </button>
+                <button class="btn btn-primary" onclick="openCreateAccountModal()">
+                    <span>✨ Open Account</span>
+                </button>
+                <button class="btn btn-outline" onclick="resetDatabase()" title="Reset DB to 4 Default Accounts">
+                    <span>🔄 Reset DB</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Body Container -->
+        <div class="content-body">
+
+            <!-- 1. DASHBOARD TAB -->
+            <section id="section-dashboard" class="tab-section active">
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Total Bank Liquidity</span>
+                            <div class="metric-icon icon-blue">💰</div>
+                        </div>
+                        <div class="metric-value" id="statLiquidity">₹0.00</div>
+                        <div class="metric-subtitle">Live ACCOUNTS.balance sum</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Active Accounts</span>
+                            <div class="metric-icon icon-emerald">👥</div>
+                        </div>
+                        <div class="metric-value" id="statAccounts">0</div>
+                        <div class="metric-subtitle">Verified KYC profiles</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Transactions Logged</span>
+                            <div class="metric-icon icon-purple">⚡</div>
+                        </div>
+                        <div class="metric-value" id="statTxns">0</div>
+                        <div class="metric-subtitle">TRANSACTIONS table ledger</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Trigger Audit Events</span>
+                            <div class="metric-icon icon-amber">🛡️</div>
+                        </div>
+                        <div class="metric-value" id="statAudits">0</div>
+                        <div class="metric-subtitle">TRG_ACCOUNT_AUDIT firings</div>
+                    </div>
+                </div>
+
+                <!-- Customer Debit Cards Section -->
+                <div class="section-header">
+                    <h3><span>💳</span> Customer Accounts & Virtual Cards</h3>
+                    <span style="font-size: 12px; color: var(--text-muted);">Click any card for instant mini-statement</span>
+                </div>
+                <div class="accounts-grid" id="accountsCardsContainer">
+                    <!-- Cards populated via JS -->
+                </div>
+
+                <!-- Dashboard Two Column Grid -->
+                <div class="dashboard-grid">
+                    <!-- Quick Transfer Box -->
+                    <div class="glass-panel">
+                        <div class="section-header">
+                            <h3><span>⚡</span> Quick Atomic Transfer</h3>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Sender (Debited)</label>
+                                <select id="dashFromAcc"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Receiver (Credited)</label>
+                                <select id="dashToAcc"></select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Transfer Amount (₹)</label>
+                            <input type="number" id="dashAmount" placeholder="e.g. 5000" min="1" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label>Remarks</label>
+                            <input type="text" id="dashRemarks" value="Fund Transfer" placeholder="e.g. Rent, Payment">
+                            <div class="preset-chips">
+                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Rent Share')">Rent Share</span>
+                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Dinner Split')">Dinner Split</span>
+                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Project Milestone')">Milestone</span>
+                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Utility Bill')">Utility Bill</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="handleDashTransfer()">
+                            Execute Fund Transfer (BANKING_PKG.transfer_funds)
+                        </button>
+                    </div>
+
+                    <!-- Live DBMS_OUTPUT Terminal -->
+                    <div class="glass-panel">
+                        <div class="section-header">
+                            <h3><span>🖥️</span> Live PL/SQL Execution Stream</h3>
+                            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 11px;" onclick="clearTerminal()">Clear</button>
+                        </div>
+                        <div class="terminal-panel" id="dbmsTerminal">
+                            <div class="term-line-info">[INIT] Connected to PL/SQL Engine. Listening for procedures...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. FUND TRANSFER TAB -->
+            <section id="section-transfer" class="tab-section">
+                <div class="glass-panel" style="max-width: 780px; margin: 0 auto;">
+                    <div class="section-header">
+                        <h3><span>💸</span> Atomic Fund Transfer (`BANKING_PKG.transfer_funds`)</h3>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6;">
+                        This operation uses <code>SAVEPOINT</code>, row-level locking (<code>FOR UPDATE</code>), and atomic balance updates. If either balance is insufficient, it rolls back cleanly and raises custom exception <code>ORA-20002</code>.
+                    </p>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>From Account (Sender)</label>
+                            <select id="mainTransferFrom" onchange="updateTransferPreview()"></select>
+                            <div id="senderBalancePreview" style="font-size: 12px; color: var(--emerald); margin-top: 5px;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>To Account (Receiver)</label>
+                            <select id="mainTransferTo" onchange="updateTransferPreview()"></select>
+                            <div id="receiverBalancePreview" style="font-size: 12px; color: var(--primary); margin-top: 5px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Transfer Amount (₹)</label>
+                        <input type="number" id="mainTransferAmount" placeholder="Enter amount to transfer..." min="1" step="any">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Remarks / Purpose</label>
+                        <input type="text" id="mainTransferRemarks" value="Fund Transfer" placeholder="e.g. Monthly Salary, Investment">
+                    </div>
+
+                    <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;" onclick="handleMainTransfer()">
+                        ⚡ Transfer Funds with PL/SQL Atomicity
+                    </button>
+                </div>
+            </section>
+
+            <!-- 3. TRANSACTIONS TAB -->
+            <section id="section-transactions" class="tab-section">
+                <div class="section-header">
+                    <h3><span>📊</span> All Ledger Transactions (`TRANSACTIONS`)</h3>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="txnSearch" placeholder="Search by name, remark, or ID..." style="width: 260px;" oninput="filterTransactions()">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>TXN ID</th>
+                                <th>TYPE</th>
+                                <th>FROM ACC</th>
+                                <th>TO ACC</th>
+                                <th>AMOUNT</th>
+                                <th>STATUS</th>
+                                <th>TIMESTAMP</th>
+                                <th>REMARKS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 4. TRIGGER AUDIT TAB -->
+            <section id="section-audit" class="tab-section">
+                <div class="section-header">
+                    <h3><span>🛡️</span> Trigger Audit Trail (`AUDIT_LOGS`)</h3>
+                    <span style="font-size: 12px; color: var(--text-muted);">Populated in real-time by trigger `TRG_ACCOUNT_AUDIT`</span>
+                </div>
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 18px;">
+                    Whenever any transaction modifies <code>ACCOUNTS.balance</code>, the database trigger captures <code>:OLD.balance</code>, <code>:NEW.balance</code>, and records the audit record automatically.
+                </p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>LOG ID</th>
+                                <th>ACCOUNT NO</th>
+                                <th>TRIGGER ACTION</th>
+                                <th>OLD BALANCE</th>
+                                <th>NEW BALANCE</th>
+                                <th>TRIGGER ORIGIN</th>
+                                <th>TIMESTAMP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 5. SQL PLAYGROUND TAB -->
+            <section id="section-sql" class="tab-section">
+                <div class="section-header">
+                    <h3><span>💻</span> Live SQL Query Console</h3>
+                    <div class="preset-chips">
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM ACCOUNTS;')">SELECT ACCOUNTS</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM TRANSACTIONS ORDER BY txn_id DESC LIMIT 10;')">SELECT TRANSACTIONS</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM AUDIT_LOGS ORDER BY log_id DESC LIMIT 10;')">SELECT AUDIT_LOGS</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT account_type, COUNT(*), SUM(balance) FROM ACCOUNTS GROUP BY account_type;')">GROUP BY TYPE</span>
+                    </div>
+                </div>
+                <div class="glass-panel" style="margin-bottom: 20px;">
+                    <textarea id="sqlInput" rows="4" style="font-family: var(--font-mono); font-size: 13px;" placeholder="Write any SQL query here (e.g. SELECT * FROM ACCOUNTS;)"></textarea>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+                        <button class="btn btn-primary" onclick="runCustomSQL()">▶ Execute Query</button>
+                    </div>
+                </div>
+                <div class="table-container" id="sqlResultContainer" style="display: none;">
+                    <table id="sqlResultTable"></table>
+                </div>
+            </section>
+
+            <!-- 6. BATCH INTEREST CURSOR TAB -->
+            <section id="section-interest" class="tab-section">
+                <div class="glass-panel" style="max-width: 680px; margin: 0 auto;">
+                    <div class="section-header">
+                        <h3><span>📈</span> Monthly Interest Explicit Cursor</h3>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6;">
+                        This simulates <code>BANKING_PKG.apply_monthly_interest</code> which uses an explicit cursor with <code>FOR UPDATE OF balance</code> and updates matching active Savings accounts using <code>WHERE CURRENT OF</code>.
+                    </p>
+
+                    <div class="form-group">
+                        <label>Annual Interest Rate (% P.A.)</label>
+                        <div style="display: flex; gap: 14px; align-items: center;">
+                            <input type="range" id="interestSlider" min="1.0" max="10.0" step="0.25" value="4.5" style="flex: 1;" oninput="document.getElementById('interestRateLabel').innerText = this.value + '%'">
+                            <span id="interestRateLabel" style="font-size: 16px; font-weight: 800; font-family: var(--font-mono); color: var(--emerald);">4.5%</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success" style="width: 100%; justify-content: center; padding: 12px; margin-top: 10px;" onclick="runInterestBatch()">
+                        🚀 Run Monthly Interest Cursor Batch
+                    </button>
+
+                    <div id="interestResultDetails" style="margin-top: 20px;"></div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<!-- MODAL 1: Open Account -->
+<div class="modal-overlay" id="modalCreateAccount">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Open New Bank Account</h3>
+            <button class="close-btn" onclick="closeModal('modalCreateAccount')">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Customer Full Name</label>
+            <input type="text" id="newAccName" placeholder="e.g. Ramesh Kumar">
+        </div>
+        <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="newAccEmail" placeholder="e.g. ramesh@example.com">
+        </div>
+        <div class="form-group">
+            <label>Mobile Number</label>
+            <input type="text" id="newAccPhone" placeholder="e.g. +91 98123 45678">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Account Type</label>
+                <select id="newAccType">
+                    <option value="SAVINGS">Savings Account</option>
+                    <option value="SALARY">Salary Account</option>
+                    <option value="CURRENT">Current Account</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Initial Deposit (₹)</label>
+                <input type="number" id="newAccDeposit" value="5000" min="0">
+            </div>
+        </div>
+        <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="submitCreateAccount()">
+            Create Account & Issue Number
+        </button>
+    </div>
+</div>
+
+<!-- MODAL 2: Deposit -->
+<div class="modal-overlay" id="modalDeposit">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Deposit Funds (`BANKING_PKG.deposit`)</h3>
+            <button class="close-btn" onclick="closeModal('modalDeposit')">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Select Target Account</label>
+            <select id="depositAccSelect"></select>
+        </div>
+        <div class="form-group">
+            <label>Deposit Amount (₹)</label>
+            <input type="number" id="depositAmount" placeholder="e.g. 5000" min="1">
+        </div>
+        <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" id="depositRemarks" value="Cash Deposit via Branch">
+        </div>
+        <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="submitDeposit()">
+            Credit Account
+        </button>
+    </div>
+</div>
+
+<!-- MODAL 3: Withdraw -->
+<div class="modal-overlay" id="modalWithdraw">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Withdraw Funds (`BANKING_PKG.withdraw`)</h3>
+            <button class="close-btn" onclick="closeModal('modalWithdraw')">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Select Account</label>
+            <select id="withdrawAccSelect"></select>
+        </div>
+        <div class="form-group">
+            <label>Withdrawal Amount (₹)</label>
+            <input type="number" id="withdrawAmount" placeholder="e.g. 2000" min="1">
+        </div>
+        <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" id="withdrawRemarks" value="ATM Cash Withdrawal">
+        </div>
+        <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="submitWithdraw()">
+            Debit Account
+        </button>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
