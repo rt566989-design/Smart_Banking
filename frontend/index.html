@@ -3,9 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ApexBank PL/SQL - Smart Banking & Fund Transfer System</title>
+    <title>ApexBank PL/SQL & ADBMS - Advanced Banking System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'><path d='M2 10h20v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V10zm2-7.5L12 1l8 1.5V8H4V2.5z'/></svg>">
+    <style>
+        .adbms-subnav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+        }
+        .adbms-subnav .chip-btn.active {
+            background: var(--primary-gradient);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+        .adbms-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .badge-adbms {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+        }
+        .badge-range { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .badge-list  { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+        .badge-autonomous { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    </style>
 </head>
 <body>
 
@@ -16,7 +50,7 @@
             <div class="logo-badge">⚡</div>
             <div class="logo-text">
                 <h2>ApexBank</h2>
-                <span>PL/SQL ENGINE</span>
+                <span>ADBMS & PL/SQL</span>
             </div>
         </div>
 
@@ -24,6 +58,10 @@
             <div class="nav-item active" onclick="switchNav('dashboard', this)">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
                 <span>Dashboard</span>
+            </div>
+            <div class="nav-item" onclick="switchNav('adbms', this)">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                <span>⚡ ADBMS Hub</span>
             </div>
             <div class="nav-item" onclick="switchNav('transfer', this)">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
@@ -50,7 +88,7 @@
         <div class="sidebar-footer">
             <div class="status-pill">
                 <div class="pulse-dot"></div>
-                <span>Oracle Engine: Online</span>
+                <span>Oracle & ADBMS: Online</span>
             </div>
         </div>
     </aside>
@@ -61,7 +99,7 @@
         <header class="top-header">
             <div class="header-title">
                 <h1 id="pageTitle">Banking Overview</h1>
-                <p id="pageSubtitle">Real-time PL/SQL Transaction Management System</p>
+                <p id="pageSubtitle">Real-time PL/SQL & ADBMS Transaction Management System</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-outline" onclick="openDepositModal()">
@@ -73,7 +111,7 @@
                 <button class="btn btn-primary" onclick="openCreateAccountModal()">
                     <span>✨ Open Account</span>
                 </button>
-                <button class="btn btn-outline" onclick="resetDatabase()" title="Reset DB to 4 Default Accounts">
+                <button class="btn btn-outline" onclick="resetDatabase()" title="Reset DB to Default ADBMS Dataset">
                     <span>🔄 Reset DB</span>
                 </button>
             </div>
@@ -100,7 +138,7 @@
                             <div class="metric-icon icon-emerald">👥</div>
                         </div>
                         <div class="metric-value" id="statAccounts">0</div>
-                        <div class="metric-subtitle">Verified KYC profiles</div>
+                        <div class="metric-subtitle">Across 4 Branches</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
@@ -108,7 +146,7 @@
                             <div class="metric-icon icon-purple">⚡</div>
                         </div>
                         <div class="metric-value" id="statTxns">0</div>
-                        <div class="metric-subtitle">TRANSACTIONS table ledger</div>
+                        <div class="metric-subtitle">Range-Partitioned Ledger</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-header">
@@ -117,6 +155,22 @@
                         </div>
                         <div class="metric-value" id="statAudits">0</div>
                         <div class="metric-subtitle">TRG_ACCOUNT_AUDIT firings</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Fraud Alerts (Autonomous)</span>
+                            <div class="metric-icon" style="background: rgba(244,63,94,0.15); color: var(--rose);">🚨</div>
+                        </div>
+                        <div class="metric-value" id="statFrauds">0</div>
+                        <div class="metric-subtitle">Committed independently</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Distributed 2PC Txns</span>
+                            <div class="metric-icon" style="background: rgba(168,85,247,0.15); color: var(--purple);">🌐</div>
+                        </div>
+                        <div class="metric-value" id="statDtxns">0</div>
+                        <div class="metric-subtitle">Two-Phase Commit ledger</div>
                     </div>
                 </div>
 
@@ -128,75 +182,330 @@
                 <div class="accounts-grid" id="accountsCardsContainer">
                     <!-- Cards populated via JS -->
                 </div>
+            </section>
 
-                <!-- Dashboard Two Column Grid -->
-                <div class="dashboard-grid">
-                    <!-- Quick Transfer Box -->
-                    <div class="glass-panel">
-                        <div class="section-header">
-                            <h3><span>⚡</span> Quick Atomic Transfer</h3>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Sender (Debited)</label>
-                                <select id="dashFromAcc"></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Receiver (Credited)</label>
-                                <select id="dashToAcc"></select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Transfer Amount (₹)</label>
-                            <input type="number" id="dashAmount" placeholder="e.g. 5000" min="1" step="any">
-                        </div>
-                        <div class="form-group">
-                            <label>Remarks</label>
-                            <input type="text" id="dashRemarks" value="Fund Transfer" placeholder="e.g. Rent, Payment">
-                            <div class="preset-chips">
-                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Rent Share')">Rent Share</span>
-                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Dinner Split')">Dinner Split</span>
-                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Project Milestone')">Milestone</span>
-                                <span class="chip-btn" onclick="setPresetRemark('dashRemarks', 'Utility Bill')">Utility Bill</span>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="handleDashTransfer()">
-                            Execute Fund Transfer (BANKING_PKG.transfer_funds)
-                        </button>
-                    </div>
+            <!-- 2. ADBMS HUB TAB -->
+            <section id="section-adbms" class="tab-section">
+                <!-- ADBMS Sub Navigation -->
+                <div class="adbms-subnav">
+                    <span class="chip-btn active" onclick="switchAdbmsSubTab('partitions', this)">🗂️ Partitioning Engine</span>
+                    <span class="chip-btn" onclick="switchAdbmsSubTab('compound', this)">🛡️ Compound Trigger (Daily Cap)</span>
+                    <span class="chip-btn" onclick="switchAdbmsSubTab('fraud', this)">🚨 Autonomous Transactions</span>
+                    <span class="chip-btn" onclick="switchAdbmsSubTab('bulk', this)">🚀 High-Speed Bulk Processing</span>
+                    <span class="chip-btn" onclick="switchAdbmsSubTab('mviews', this)">📊 Materialized Views & OLAP</span>
+                    <span class="chip-btn" onclick="switchAdbmsSubTab('distributed', this)">🌐 Distributed 2PC Simulator</span>
+                </div>
 
-                    <!-- Live DBMS_OUTPUT Terminal -->
-                    <div class="glass-panel">
+                <!-- SUBTAB 1: PARTITIONING ENGINE -->
+                <div id="adbms-sub-partitions" class="adbms-sub-section">
+                    <div class="glass-panel" style="margin-bottom: 20px;">
                         <div class="section-header">
-                            <h3><span>🖥️</span> Live PL/SQL Execution Stream</h3>
-                            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 11px;" onclick="clearTerminal()">Clear</button>
+                            <h3><span>🗂️</span> Range & List Table Partitioning</h3>
+                            <span class="badge-adbms badge-range">Oracle Range & List Partition Pruning</span>
                         </div>
-                        <div class="terminal-panel" id="dbmsTerminal">
-                            <div class="term-line-info">[INIT] Connected to PL/SQL Engine. Listening for procedures...</div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
+                            In ADBMS, <strong>Table Partitioning</strong> physically subdivides high-volume tables to accelerate query execution. Queries on specific date ranges execute <strong>Partition Pruning</strong>, avoiding full table scans and reading only the targeted partition disk blocks.
+                        </p>
+                        
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+                            <label style="font-size: 13px; font-weight: 600; align-self: center;">Filter Range Partition:</label>
+                            <span class="chip-btn active" onclick="filterPartitionTxns('ALL', this)">All Partitions</span>
+                            <span class="chip-btn" onclick="filterPartitionTxns('P_2025_Q1', this)">P_2025_Q1 (Jan-Mar)</span>
+                            <span class="chip-btn" onclick="filterPartitionTxns('P_2025_Q2', this)">P_2025_Q2 (Apr-Jun)</span>
+                            <span class="chip-btn" onclick="filterPartitionTxns('P_2025_Q3', this)">P_2025_Q3 (Jul-Sep)</span>
+                            <span class="chip-btn" onclick="filterPartitionTxns('P_2025_Q4', this)">P_2025_Q4 (Oct-Dec)</span>
+                            <span class="chip-btn" onclick="filterPartitionTxns('P_2026_Q1', this)">P_2026_Q1 (Current)</span>
+                        </div>
+
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>TXN ID</th>
+                                        <th>PARTITION</th>
+                                        <th>TXN DATE</th>
+                                        <th>TYPE</th>
+                                        <th>AMOUNT</th>
+                                        <th>FROM ACC</th>
+                                        <th>TO ACC</th>
+                                        <th>REMARKS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="partitionTxnsTableBody"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
+
+                <!-- SUBTAB 2: COMPOUND TRIGGER & DAILY CAP -->
+                <div id="adbms-sub-compound" class="adbms-sub-section" style="display: none;">
+                    <div class="glass-panel" style="max-width: 760px; margin: 0 auto;">
+                        <div class="section-header">
+                            <h3><span>🛡️</span> Compound Trigger & Daily Cap Sentinel</h3>
+                            <span class="badge-adbms badge-autonomous">Bypasses ORA-04091 Mutating Error</span>
+                        </div>
+                        <div style="background: rgba(59, 130, 246, 0.08); padding: 14px; border-radius: 10px; border: 1px solid var(--border-glow); margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
+                            <strong>Why standard row triggers fail (ORA-04091):</strong> When a row-level trigger tries to run <code>SELECT SUM(amount) FROM TRANSACTIONS WHERE from_account = :NEW.from_account</code>, Oracle throws a Mutating Table Error because the table is actively changing.<br>
+                            <strong>ADBMS Solution:</strong> Our Oracle <code>COMPOUND TRIGGER</code> stores affected accounts in memory across <code>AFTER EACH ROW</code> and evaluates the aggregate daily ceiling in <code>AFTER STATEMENT</code> once the table is unlocked!
+                        </div>
+
+                        <div class="form-group">
+                            <label>Test Account (Daily Limit: ₹50,000.00)</label>
+                            <select id="compoundAccountSelect"></select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Transfer Amount (Try ₹60,000 to trigger breach)</label>
+                            <input type="number" id="compoundAmount" value="60000" min="1">
+                        </div>
+
+                        <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;" onclick="testCompoundTrigger()">
+                            ⚡ Test Compound Trigger Daily Limit Check
+                        </button>
+
+                        <div id="compoundResult" style="margin-top: 18px;"></div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 3: AUTONOMOUS TRANSACTIONS (FRAUD SENTINEL) -->
+                <div id="adbms-sub-fraud" class="adbms-sub-section" style="display: none;">
+                    <div class="glass-panel">
+                        <div class="section-header">
+                            <h3><span>🚨</span> Autonomous Security & Fraud Alerts (`FRAUD_ALERTS`)</h3>
+                            <span class="badge-adbms badge-autonomous">PRAGMA AUTONOMOUS_TRANSACTION</span>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
+                            In ADBMS, <strong>Autonomous Transactions</strong> allow subprograms to commit independent transactions without affecting the main transaction. When an overdraft or malicious attempt happens, the main financial transfer is <strong>ROLLED BACK</strong>, but the security audit log in <code>FRAUD_ALERTS</code> is <strong>PERMANENTLY COMMITTED</strong>!
+                        </p>
+
+                        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                            <button class="btn btn-outline" style="border-color: var(--rose); color: var(--rose);" onclick="simulateOverdraftAlert()">
+                                💥 Simulate Overdraft Security Incident (Auto Rollback + Fraud Commit)
+                            </button>
+                        </div>
+
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ALERT ID</th>
+                                        <th>ACCOUNT</th>
+                                        <th>SEVERITY</th>
+                                        <th>REASON</th>
+                                        <th>ATTEMPTED AMT</th>
+                                        <th>IP ADDRESS</th>
+                                        <th>ALERT TIME</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fraudAlertsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 4: HIGH-SPEED BULK PROCESSING -->
+                <div id="adbms-sub-bulk" class="adbms-sub-section" style="display: none;">
+                    <div class="adbms-card-grid">
+                        <div class="glass-panel">
+                            <div class="section-header">
+                                <h3><span>🚀</span> Bulk Monthly Interest</h3>
+                                <span class="badge-adbms badge-success">BULK COLLECT & FORALL</span>
+                            </div>
+                            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
+                                Traditional row-by-row cursors ("slow-by-slow") incur high CPU overhead switching between the PL/SQL runtime engine and SQL query engine. <code>BULK COLLECT</code> pulls entire arrays into PGA memory, and <code>FORALL</code> applies batch updates in a single context switch!
+                            </p>
+                            <div class="form-group">
+                                <label>Annual Rate (% P.A.)</label>
+                                <input type="number" id="bulkRate" value="4.5" step="0.25">
+                            </div>
+                            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="executeBulkInterest()">
+                                ⚡ Execute BULK COLLECT & FORALL Interest Batch
+                            </button>
+                            <div id="bulkInterestResult" style="margin-top: 14px; font-size: 13px;"></div>
+                        </div>
+
+                        <div class="glass-panel">
+                            <div class="section-header">
+                                <h3><span>🏷️</span> Bulk Maintenance Fee</h3>
+                                <span class="badge-adbms badge-range">FORALL SAVE EXCEPTIONS</span>
+                            </div>
+                            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
+                                Deducts monthly low-balance service fees across accounts below minimum threshold using <code>FORALL ... SAVE EXCEPTIONS</code>.
+                            </p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Fee Amount (₹)</label>
+                                    <input type="number" id="bulkFeeAmount" value="150">
+                                </div>
+                                <div class="form-group">
+                                    <label>Min Balance Tier (₹)</label>
+                                    <input type="number" id="bulkMinTier" value="2000">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="executeBulkFee()">
+                                ⚡ Deduct Bulk Maintenance Charges
+                            </button>
+                            <div id="bulkFeeResult" style="margin-top: 14px; font-size: 13px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 5: MATERIALIZED VIEWS & OLAP -->
+                <div id="adbms-sub-mviews" class="adbms-sub-section" style="display: none;">
+                    <div class="glass-panel" style="margin-bottom: 20px;">
+                        <div class="section-header">
+                            <h3><span>📊</span> Materialized View 1: `MV_DAILY_BRANCH_SUMMARY`</h3>
+                            <button class="btn btn-outline" onclick="refreshMViews()">🔄 Fast Refresh All MViews</button>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                            Pre-aggregates total deposits and account counts across regional branches for zero-latency OLAP reporting.
+                        </p>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>BRANCH CODE</th>
+                                        <th>BRANCH NAME</th>
+                                        <th>REGION</th>
+                                        <th>TOTAL ACCOUNTS</th>
+                                        <th>TOTAL LIQUIDITY</th>
+                                        <th>AVG BALANCE</th>
+                                        <th>LAST REFRESHED</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="branchMViewTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel">
+                        <div class="section-header">
+                            <h3><span>📈</span> OLAP Window Analytics (RANK & Running Balance)</h3>
+                            <span class="badge-adbms badge-range">DENSE_RANK() OVER (PARTITION BY region)</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>REGION</th>
+                                        <th>BRANCH</th>
+                                        <th>ACCOUNT</th>
+                                        <th>NAME</th>
+                                        <th>TYPE</th>
+                                        <th>BALANCE</th>
+                                        <th>REGIONAL WEALTH RANK</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="olapRankTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBTAB 6: DISTRIBUTED 2-PHASE COMMIT (2PC) -->
+                <div id="adbms-sub-distributed" class="adbms-sub-section" style="display: none;">
+                    <div class="glass-panel" style="max-width: 820px; margin: 0 auto 24px auto;">
+                        <div class="section-header">
+                            <h3><span>🌐</span> Distributed 2-Phase Commit (2PC) Simulator</h3>
+                            <span class="badge-adbms badge-list">Coordinator State Machine</span>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6;">
+                            Simulates atomic distributed banking transactions across heterogeneous bank nodes (Delhi Branch &rarr; Bangalore Branch).
+                            Phase 1 (PREPARE) verifies balance reservation and node readiness; Phase 2 executes GLOBAL COMMIT or GLOBAL ROLLBACK.
+                        </p>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Source Branch</label>
+                                <select id="dtxnSourceBranch">
+                                    <option value="BR-DEL-01">BR-DEL-01 (Delhi Connaught Place)</option>
+                                    <option value="BR-MUM-01">BR-MUM-01 (Mumbai Nariman Point)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Target Branch</label>
+                                <select id="dtxnTargetBranch">
+                                    <option value="BR-BLR-01">BR-BLR-01 (Bangalore Indiranagar)</option>
+                                    <option value="BR-KOL-01">BR-KOL-01 (Kolkata Park Street)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>From Account (Delhi)</label>
+                                <select id="dtxnFromAcc"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>To Account (Target)</label>
+                                <select id="dtxnToAcc"></select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Transfer Amount (₹)</label>
+                                <input type="number" id="dtxnAmount" value="2500" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Simulation Scenario</label>
+                                <select id="dtxnScenario">
+                                    <option value="NONE">Scenario A: Normal Flow (Prepare & Commit)</option>
+                                    <option value="PREPARE_FAIL">Scenario B: Phase 1 Failure (Remote Node Abort)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;" onclick="runDistributedTxn()">
+                            🚀 Execute Distributed 2PC Banking Protocol
+                        </button>
+                    </div>
+
+                    <div class="glass-panel">
+                        <div class="section-header">
+                            <h3><span>📜</span> Distributed Transaction Ledger (`DISTRIBUTED_TXN_LOG`)</h3>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>DTXN ID</th>
+                                        <th>GLOBAL XID</th>
+                                        <th>SOURCE</th>
+                                        <th>TARGET</th>
+                                        <th>AMOUNT</th>
+                                        <th>PHASE 1 (VOTE)</th>
+                                        <th>PHASE 2 (FINAL)</th>
+                                        <th>TIMESTAMP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dtxnTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             </section>
 
-            <!-- 2. FUND TRANSFER TAB -->
+            <!-- 3. FUND TRANSFER TAB -->
             <section id="section-transfer" class="tab-section">
-                <div class="glass-panel" style="max-width: 780px; margin: 0 auto;">
+                <div class="glass-panel" style="max-width: 640px; margin: 0 auto;">
                     <div class="section-header">
-                        <h3><span>💸</span> Atomic Fund Transfer (`BANKING_PKG.transfer_funds`)</h3>
+                        <h3><span>⚡</span> Atomic Fund Transfer (`BANKING_PKG.transfer_funds`)</h3>
                     </div>
                     <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6;">
-                        This operation uses <code>SAVEPOINT</code>, row-level locking (<code>FOR UPDATE</code>), and atomic balance updates. If either balance is insufficient, it rolls back cleanly and raises custom exception <code>ORA-20002</code>.
+                        Features <strong>Pessimistic Locking</strong> (<code>SELECT ... FOR UPDATE WAIT 5</code>) in numerical order to prevent deadlocks, with <code>SAVEPOINT</code> and atomic rollback guarantees.
                     </p>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>From Account (Sender)</label>
-                            <select id="mainTransferFrom" onchange="updateTransferPreview()"></select>
+                            <label>From Account (Debited)</label>
+                            <select id="mainTransferSender" onchange="updateSenderBalancePreview()"></select>
                             <div id="senderBalancePreview" style="font-size: 12px; color: var(--emerald); margin-top: 5px;"></div>
                         </div>
                         <div class="form-group">
-                            <label>To Account (Receiver)</label>
-                            <select id="mainTransferTo" onchange="updateTransferPreview()"></select>
+                            <label>To Account (Credited)</label>
+                            <select id="mainTransferReceiver" onchange="updateReceiverBalancePreview()"></select>
                             <div id="receiverBalancePreview" style="font-size: 12px; color: var(--primary); margin-top: 5px;"></div>
                         </div>
                     </div>
@@ -217,7 +526,7 @@
                 </div>
             </section>
 
-            <!-- 3. TRANSACTIONS TAB -->
+            <!-- 4. TRANSACTIONS TAB -->
             <section id="section-transactions" class="tab-section">
                 <div class="section-header">
                     <h3><span>📊</span> All Ledger Transactions (`TRANSACTIONS`)</h3>
@@ -244,7 +553,7 @@
                 </div>
             </section>
 
-            <!-- 4. TRIGGER AUDIT TAB -->
+            <!-- 5. TRIGGER AUDIT TAB -->
             <section id="section-audit" class="tab-section">
                 <div class="section-header">
                     <h3><span>🛡️</span> Trigger Audit Trail (`AUDIT_LOGS`)</h3>
@@ -271,15 +580,16 @@
                 </div>
             </section>
 
-            <!-- 5. SQL PLAYGROUND TAB -->
+            <!-- 6. SQL PLAYGROUND TAB -->
             <section id="section-sql" class="tab-section">
                 <div class="section-header">
                     <h3><span>💻</span> Live SQL Query Console</h3>
                     <div class="preset-chips">
                         <span class="chip-btn" onclick="setQuery('SELECT * FROM ACCOUNTS;')">SELECT ACCOUNTS</span>
-                        <span class="chip-btn" onclick="setQuery('SELECT * FROM TRANSACTIONS ORDER BY txn_id DESC LIMIT 10;')">SELECT TRANSACTIONS</span>
-                        <span class="chip-btn" onclick="setQuery('SELECT * FROM AUDIT_LOGS ORDER BY log_id DESC LIMIT 10;')">SELECT AUDIT_LOGS</span>
-                        <span class="chip-btn" onclick="setQuery('SELECT account_type, COUNT(*), SUM(balance) FROM ACCOUNTS GROUP BY account_type;')">GROUP BY TYPE</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM BRANCHES;')">SELECT BRANCHES</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM FRAUD_ALERTS ORDER BY alert_id DESC;')">SELECT FRAUD_ALERTS</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM DISTRIBUTED_TXN_LOG;')">SELECT 2PC LOG</span>
+                        <span class="chip-btn" onclick="setQuery('SELECT * FROM MV_DAILY_BRANCH_SUMMARY;')">SELECT MV_BRANCH</span>
                     </div>
                 </div>
                 <div class="glass-panel" style="margin-bottom: 20px;">
@@ -293,7 +603,7 @@
                 </div>
             </section>
 
-            <!-- 6. BATCH INTEREST CURSOR TAB -->
+            <!-- 7. BATCH INTEREST CURSOR TAB -->
             <section id="section-interest" class="tab-section">
                 <div class="glass-panel" style="max-width: 680px; margin: 0 auto;">
                     <div class="section-header">
@@ -323,11 +633,11 @@
     </main>
 </div>
 
-<!-- MODAL 1: Open Account -->
+<!-- MODAL 1: Open Account (ORDBMS) -->
 <div class="modal-overlay" id="modalCreateAccount">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Open New Bank Account</h3>
+            <h3>Open New Bank Account (ORDBMS)</h3>
             <button class="close-btn" onclick="closeModal('modalCreateAccount')">&times;</button>
         </div>
         <div class="form-group">
@@ -344,6 +654,15 @@
         </div>
         <div class="form-row">
             <div class="form-group">
+                <label>Branch Network</label>
+                <select id="newAccBranch">
+                    <option value="BR-DEL-01">BR-DEL-01 (Delhi Connaught Place)</option>
+                    <option value="BR-MUM-01">BR-MUM-01 (Mumbai Nariman Point)</option>
+                    <option value="BR-BLR-01">BR-BLR-01 (Bangalore Indiranagar)</option>
+                    <option value="BR-KOL-01">BR-KOL-01 (Kolkata Park Street)</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Account Type</label>
                 <select id="newAccType">
                     <option value="SAVINGS">Savings Account</option>
@@ -351,10 +670,10 @@
                     <option value="CURRENT">Current Account</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Initial Deposit (₹)</label>
-                <input type="number" id="newAccDeposit" value="5000" min="0">
-            </div>
+        </div>
+        <div class="form-group">
+            <label>Initial Deposit (₹)</label>
+            <input type="number" id="newAccDeposit" value="5000" min="0">
         </div>
         <button class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="submitCreateAccount()">
             Create Account & Issue Number
@@ -366,7 +685,7 @@
 <div class="modal-overlay" id="modalDeposit">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Deposit Funds (`BANKING_PKG.deposit`)</h3>
+            <h3>Deposit Funds (`ADBMS_BANKING_PKG.deposit`)</h3>
             <button class="close-btn" onclick="closeModal('modalDeposit')">&times;</button>
         </div>
         <div class="form-group">
@@ -391,7 +710,7 @@
 <div class="modal-overlay" id="modalWithdraw">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Withdraw Funds (`BANKING_PKG.withdraw`)</h3>
+            <h3>Withdraw Funds (`ADBMS_BANKING_PKG.withdraw`)</h3>
             <button class="close-btn" onclick="closeModal('modalWithdraw')">&times;</button>
         </div>
         <div class="form-group">

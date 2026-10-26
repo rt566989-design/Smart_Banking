@@ -1,102 +1,91 @@
-# Smart Banking & Fund Transfer System (Oracle PL/SQL & Full-Stack Web App)
+# 🏛️ Smart Banking & Fund Transfer System (ADBMS & Oracle PL/SQL Enterprise Suite)
 
-A comprehensive **Oracle PL/SQL Mini Project** demonstrating enterprise banking operations, ACID-compliant atomic fund transfers, automated interest calculation with cursors, security audit triggers, and a modern full-stack web dashboard.
+An advanced, comprehensive **Advanced Database Management Systems (ADBMS) + Oracle PL/SQL Mini Project** combining modern database engineering, Object-Relational features, partitioned distributed banking, high-performance bulk bindings, and an interactive full-stack web dashboard.
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Architecture & File Directory
+
+### 🌟 Advanced ADBMS & PL/SQL Suite (Synchronized Everywhere)
+
+| File Name | Purpose & ADBMS Concepts Demonstrated |
+| :--- | :--- |
+| [`all_in_one_run.sql`](all_in_one_run.sql) / [`adbms_all_in_one_master.sql`](adbms_all_in_one_master.sql) | **Master 1-Click Script**: Oracle Live SQL, SQL Developer, or SQL*Plus ready |
+| [`01_schema.sql`](01_schema.sql) / [`01_adbms_schema.sql`](01_adbms_schema.sql) | **ORDBMS User Types** (`ADDRESS_TYP`, `KYC_DOC_TYP`), VARRAYs, **Range Partitioned** Transactions & **List Partitioned** Accounts |
+| [`02_adbms_indexing_mviews.sql`](02_adbms_indexing_mviews.sql) | **Advanced Indexing** (Bitmap, Function-Based, Composite) & **Materialized Views** with Fast Refresh Logs |
+| [`02_triggers.sql`](02_triggers.sql) / [`03_adbms_compound_triggers.sql`](03_adbms_compound_triggers.sql) | **Autonomous Transactions** (`PRAGMA AUTONOMOUS_TRANSACTION`) & **Compound Trigger** (Bypassing `ORA-04091` Mutating Table Error) |
+| [`03_package_spec.sql`](03_package_spec.sql) / [`04_adbms_package_spec.sql`](04_adbms_package_spec.sql) | Package Spec: Bulk Collect routines, Pipelined Table Functions, and Distributed 2PC Simulator |
+| [`04_package_body.sql`](04_package_body.sql) / [`05_adbms_package_body.sql`](05_adbms_package_body.sql) | Package Body: `BULK COLLECT` + `FORALL ... SAVE EXCEPTIONS`, Row Locking (`FOR UPDATE WAIT 5`), and Pipelined streaming |
+| [`06_adbms_olap_analytics.sql`](06_adbms_olap_analytics.sql) | **OLAP Window Functions**: `RANK`, `DENSE_RANK`, Runtime Running Balances, `LEAD`/`LAG` Anomaly Velocity, and `ROLLUP`/`CUBE` |
+| [`05_sample_data.sql`](05_sample_data.sql) / [`07_adbms_sample_data.sql`](07_adbms_sample_data.sql) | Multi-Branch network seed data (Delhi, Mumbai, Bangalore, Kolkata) spanning multi-quarter partitions |
+| [`06_test_cases.sql`](06_test_cases.sql) / [`08_adbms_test_suite.sql`](08_adbms_test_suite.sql) | Automated test suite validating all 8 ADBMS scenarios end-to-end |
+| [`ADBMS_PLSQL_PROJECT_REPORT.md`](ADBMS_PLSQL_PROJECT_REPORT.md) | **Complete Academic Project Report & Viva / Interview Guide** with ER diagrams and 15+ solved questions |
+
+### 💻 Full-Stack Application, In-IDE Runners & Simulators
 
 | File Name | Purpose |
 | :--- | :--- |
-| [`01_schema.sql`](01_schema.sql) | Tables (`ACCOUNTS`, `TRANSACTIONS`, `AUDIT_LOGS`), Sequences, and Integrity Constraints |
-| [`02_triggers.sql`](02_triggers.sql) | Automated Audit Trigger (`TRG_ACCOUNT_AUDIT`) & Safety Trigger (`TRG_PREVENT_DELETE_ACTIVE`) |
-| [`03_package_spec.sql`](03_package_spec.sql) | Package Specification (`BANKING_PKG`) declaring public procedures, functions, and custom exceptions |
-| [`04_package_body.sql`](04_package_body.sql) | Package Body implementing business logic, row locking, cursors, and transaction management |
-| [`05_sample_data.sql`](05_sample_data.sql) | Initial seed data (4 sample bank accounts across Savings, Salary, and Current accounts) |
-| [`06_test_cases.sql`](06_test_cases.sql) | Comprehensive test scenarios covering deposits, transfers, overdraft exceptions, and audit logs |
-| [`all_in_one_run.sql`](all_in_one_run.sql) | **Single-file version** (Copy and paste directly into Oracle Live SQL or SQL Developer) |
-| [`run_fullstack.py`](run_fullstack.py) | Full-stack runner launching the Flask REST API & glassmorphic web dashboard |
-| [`Start_Banking_Project.bat`](Start_Banking_Project.bat) | 1-Click Windows launcher script |
+| [`run_project.py`](run_project.py) | **In-IDE 1-Click Play Button Runner**: Executes all 8 ADBMS modules and prints a formatted terminal report |
+| [`run_banking.py`](run_banking.py) | **Terminal ADBMS PL/SQL Executor**: Runs atomic operations, autonomous alerts, and bulk processing in console |
+| [`simulate_banking.py`](simulate_banking.py) | **Interactive Console Simulator**: Interactive CLI menu (0-11) for testing 2PC, partitions, and triggers |
+| [`Start_Banking_Project.bat`](Start_Banking_Project.bat) | **1-Click Windows Launcher** (Launches server & opens browser dashboard automatically) |
+| [`run_fullstack.py`](run_fullstack.py) / [`app.py`](app.py) | Python full-stack runners hosting the REST API and modern glassmorphic web dashboard |
+| [`backend/app.py`](backend/app.py) | Flask REST API controller connecting the web dashboard with the ADBMS banking engine |
+| [`backend/banking_engine.py`](backend/banking_engine.py) | Python business engine executing ACID locks, autonomous fraud alerts, 2PC, and partitioning |
+| [`backend/database.py`](backend/database.py) | Database manager initializing SQLite partitions, audit ledgers, and materialized view tables |
+| [`frontend/index.html`](frontend/index.html) | Modern dark-mode web application featuring the interactive **⚡ ADBMS Hub** |
 
 ---
 
-## 🧩 Key PL/SQL Concepts Implemented
+## 🧩 Key ADBMS + PL/SQL Concepts Implemented
 
-1. **Package Architecture (`BANKING_PKG`)**:
-   - Clean modularity with separate **Specification** and **Body**.
-   - Encapsulation of internal operations with public interfaces.
-2. **Transaction Control (ACID Compliance)**:
-   - `SAVEPOINT sp_before_transfer;`
-   - `ROLLBACK TO sp_before_transfer;`
-   - `COMMIT;`
-   - Row-level pessimistic locking via `SELECT ... FOR UPDATE` to eliminate concurrency issues and race conditions.
-3. **Database Triggers**:
-   - `TRG_ACCOUNT_AUDIT`: Real-time audit trail recording every balance or status change into `AUDIT_LOGS`.
-   - `TRG_PREVENT_DELETE_ACTIVE`: Safety rule preventing deletion of active accounts with non-zero balances.
-4. **Cursors**:
-   - Explicit cursor with `FOR UPDATE OF balance` and `WHERE CURRENT OF c_savings` in `apply_monthly_interest`.
-   - Cursor FOR Loop with formatted statement output in `print_mini_statement`.
-5. **Exception Handling**:
-   - Custom business exceptions (`e_insufficient_funds`, `e_account_inactive`, `e_same_account`, `e_invalid_amount`) mapped via `PRAGMA EXCEPTION_INIT`.
-   - User-friendly error messaging with `RAISE_APPLICATION_ERROR`.
-
----
-
-## 🚀 How to Run (Execution Steps)
-
-### Method 1: Oracle SQL Developer / Oracle Live SQL (Pure PL/SQL)
-
-#### Option A: 1-Click Run (Fastest)
-1. Open Oracle SQL Developer, SQL*Plus, or [Oracle Live SQL](https://livesql.oracle.com/).
-2. Copy the entire contents of [`all_in_one_run.sql`](all_in_one_run.sql) and click **Run Script (F5)**.
-
-#### Option B: Step-by-Step Execution
-Execute the SQL scripts in this exact order:
-```sql
-@01_schema.sql
-@02_triggers.sql
-@03_package_spec.sql
-@04_package_body.sql
-@05_sample_data.sql
-@06_test_cases.sql
-```
+1. **Object-Relational DBMS (ORDBMS)**:
+   - User-defined Object Types (`ADDRESS_TYP`) with member methods (`get_full_address()`).
+   - Structured KYC documents (`KYC_DOC_TYP`) and in-row collections (`PHONE_ARRAY_TYP AS VARRAY(3)`).
+2. **Table Partitioning & Partition Pruning**:
+   - `TRANSACTIONS_PARTITIONED`: Partitioned by `RANGE (txn_date)` into historical quarters (`p_2025_q1` to `p_future`).
+   - `ACCOUNTS_PARTITIONED`: Partitioned by `LIST (account_type)` into `SAVINGS`, `CURRENT`, and `SALARY`.
+   - **Partition Pruning**: Query execution plans skip entire unneeded disk partitions during date range lookups.
+3. **Compound Triggers (Bypassing Mutating Table Error `ORA-04091`)**:
+   - Enforces daily transaction ceiling (₹50,000/day).
+   - Solves the mutating table error using 4 execution phases (`BEFORE STATEMENT`, `BEFORE EACH ROW`, `AFTER EACH ROW`, `AFTER STATEMENT`) and PGA memory arrays.
+4. **Autonomous Transactions (`PRAGMA AUTONOMOUS_TRANSACTION`)**:
+   - Security incidents and fraud alerts are written in an independent commit scope.
+   - Even when a malicious transfer aborts and triggers `ROLLBACK`, the forensic log in `FRAUD_ALERTS` is permanently retained.
+5. **High-Performance Bulk Operations (`BULK COLLECT` & `FORALL`)**:
+   - Eliminates slow-by-slow row iteration and CPU context switching between PL/SQL and SQL engines.
+   - Accelerates batch interest and maintenance fee deductions by **20x to 50x**.
+6. **Materialized Views with Fast Refresh (OLAP / Data Warehousing)**:
+   - `MV_DAILY_BRANCH_SUMMARY` & `MV_CUSTOMER_NETWORTH` precompute branch liquidity and customer tiers for instant retrieval.
+7. **Distributed Two-Phase Commit (2PC) Banking Simulator**:
+   - Simulates distributed banking across remote branch nodes (Branch Delhi &rarr; Branch Bangalore).
+   - Coordinates Phase 1 (Prepare / Balance Reservation) and Phase 2 (Global Commit or Rollback).
+8. **OLAP Analytical SQL**:
+   - `RANK()` and `DENSE_RANK()` for regional wealth classification.
+   - Cumulative runtime running balances via `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+   - Rapid anomaly velocity detection using `LEAD()` and `LAG()`.
 
 ---
 
-### Method 2: Modern Full-Stack Web Application (Local Python & Web UI)
+## 🚀 How to Run the Project
 
-You can also run the project locally with the included interactive web dashboard:
-
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Launch the Application**:
-   - Double-click [`Start_Banking_Project.bat`](Start_Banking_Project.bat) OR run:
+### Method 1: Interactive Full-Stack Web Dashboard (1-Click Run)
+1. Double-click [`Start_Banking_Project.bat`](Start_Banking_Project.bat) OR run in your terminal:
    ```bash
    python run_fullstack.py
    ```
+2. The browser opens automatically at `http://127.0.0.1:5000`.
+3. Test all features visually:
+   - Transfer funds with row-level locks and ACID savepoints.
+   - Open the **⚡ ADBMS Hub** tab to test partition pruning, trigger the compound trigger daily cap, simulate autonomous fraud alerts, execute bulk processing batches, and run 2PC distributed transfers.
 
-3. **Open the Dashboard**:
-   - Navigate to `http://127.0.0.1:5000` in your web browser.
-   - Test real-time transfers, deposits, withdrawals, trigger audits, and interest calculations visually.
+### Method 2: Pure Oracle Database (Oracle Live SQL / SQL Developer)
+1. Open [Oracle Live SQL](https://livesql.oracle.com/) or Oracle SQL Developer.
+2. Copy and paste the entire content of [`adbms_all_in_one_master.sql`](adbms_all_in_one_master.sql).
+3. Click **Run Script (F5)** to execute the entire schema, compile packages, seed multi-branch data, and run all 8 automated tests.
 
 ---
 
-## 🎯 Viva / Interview Questions & Answers
-
-### Q1: What are the benefits of using a Package instead of standalone procedures?
-> **Answer:** Packages provide modularity, encapsulation, information hiding, and superior performance in PL/SQL. A package cleanly separates the specification (interface) from the body (implementation), allowing internal logic changes without invalidating dependent objects. Additionally, when a package subprogram is first invoked, the entire package is loaded into the SGA (System Global Area) memory at once, minimizing subsequent disk I/O and accelerating future executions.
-
-### Q2: Why is Row-Level Locking (`FOR UPDATE`) essential during fund transfers?
-> **Answer:** When two or more concurrent transactions attempt to withdraw or transfer funds from the same account simultaneously (race condition), it can cause lost updates or result in negative balances. `SELECT ... FOR UPDATE` acquires an exclusive row-level pessimistic lock on the account record until the transaction executes `COMMIT` or `ROLLBACK`, preventing race conditions and ensuring strict ACID transaction compliance.
-
-### Q3: Why is `SAVEPOINT` used in the transfer operation?
-> **Answer:** In the `transfer_funds` procedure, if an error or unexpected condition occurs after debiting the sender but prior to crediting the receiver, `ROLLBACK TO sp_before_transfer` rolls back only the financial state to the point before the transfer started. This ensures sender funds are safely restored, while still allowing the procedure to log the failed transaction details into the audit ledger and gracefully handle the exception.
-
-### Q4: What is the purpose of `WHERE CURRENT OF cursor_name`?
-> **Answer:** When iterating over a cursor declared with `FOR UPDATE`, using `UPDATE table_name SET ... WHERE CURRENT OF cursor_name` allows direct, optimized modification of the exact row currently fetched by the cursor, eliminating the overhead of re-evaluating primary keys or searching the table again.
-
-### Q5: How is the automated audit trail maintained using Triggers?
-> **Answer:** The `TRG_ACCOUNT_AUDIT` trigger fires `AFTER UPDATE OF balance, status ON ACCOUNTS` for each row. By comparing `:OLD.balance` and `:NEW.balance`, it automatically captures the change type (`CREDIT_UPDATE` or `DEBIT_UPDATE`), the old and new balance amounts, the modifying database user, and the exact timestamp, inserting an immutable audit entry into `AUDIT_LOGS` for compliance and financial tracking.
+## 📚 Academic Project Documentation & Viva Guide
+Read the complete project synopsis, architectural diagrams, and 15+ university examination questions and answers in:
+👉 [`ADBMS_PLSQL_PROJECT_REPORT.md`](ADBMS_PLSQL_PROJECT_REPORT.md)

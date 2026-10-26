@@ -1,244 +1,146 @@
 """
-Smart Banking & Fund Transfer System - Local Interactive Simulator
-Simulates the PL/SQL tables, triggers, and package procedures locally using SQLite & Python.
+=============================================================================
+SMART BANKING & ENTERPRISE FUND TRANSFER SYSTEM - INTERACTIVE CLI SIMULATOR
+Demonstrates ADBMS and Oracle PL/SQL concepts in an interactive console menu.
+Command: python simulate_banking.py
+=============================================================================
 """
-import sqlite3
 import sys
 import io
-from datetime import datetime
+import os
+import time
 
-# Ensure standard UTF-8 stream output for Windows console
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+# Ensure clean UTF-8 output on Windows console
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-# Initialize in-memory or local database
-conn = sqlite3.connect("banking_local.db")
-cursor = conn.cursor()
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, PROJECT_ROOT)
 
+from backend.database import init_database
+from backend.banking_engine import BankingEngine
 
-# 1. Create Tables
-cursor.executescript("""
-DROP TABLE IF EXISTS AUDIT_LOGS;
-DROP TABLE IF EXISTS TRANSACTIONS;
-DROP TABLE IF EXISTS ACCOUNTS;
+def clear_screen():
+    print("\n" * 2)
 
-CREATE TABLE ACCOUNTS (
-    account_no       INTEGER PRIMARY KEY AUTOINCREMENT,
-    holder_name      TEXT NOT NULL,
-    email            TEXT UNIQUE NOT NULL,
-    phone            TEXT,
-    account_type     TEXT DEFAULT 'SAVINGS' CHECK (account_type IN ('SAVINGS', 'CURRENT', 'SALARY')),
-    balance          REAL DEFAULT 0.0 CHECK (balance >= 0),
-    status           TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DORMANT', 'FROZEN', 'CLOSED')),
-    created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+def print_banner():
+    print("=" * 78)
+    print("      🏛️  APEXBANK: ADBMS & PL/SQL INTERACTIVE CONSOLE TERMINAL")
+    print("      Multi-Branch Core | Autonomous Transactions | Partitioning | 2PC")
+    print("=" * 78)
 
-CREATE TABLE TRANSACTIONS (
-    txn_id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_account     INTEGER,
-    to_account       INTEGER,
-    txn_type         TEXT NOT NULL CHECK (txn_type IN ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER', 'INTEREST')),
-    amount           REAL NOT NULL CHECK (amount > 0),
-    txn_date         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status           TEXT DEFAULT 'SUCCESS' CHECK (status IN ('SUCCESS', 'FAILED')),
-    remarks          TEXT,
-    FOREIGN KEY(from_account) REFERENCES ACCOUNTS(account_no),
-    FOREIGN KEY(to_account) REFERENCES ACCOUNTS(account_no)
-);
+def show_accounts():
+    accounts = BankingEngine.get_all_accounts()
+    print("\n--- ACTIVE ACCOUNTS (MULTI-BRANCH) ---")
+    print(f"{'Acc No':<8} | {'Holder Name':<20} | {'Branch Name':<24} | {'Type':<9} | {'Balance'}")
+    print("-" * 80)
+    for a in accounts:
+        print(f"{a['account_no']:<8} | {a['holder_name']:<20} | {a.get('branch_name', 'Main'):<24} | {a['account_type']:<9} | ₹{a['balance']:,.2f}")
+    print()
 
-CREATE TABLE AUDIT_LOGS (
-    log_id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_no       INTEGER NOT NULL,
-    action_type      TEXT NOT NULL,
-    old_balance      REAL,
-    new_balance      REAL,
-    changed_by       TEXT DEFAULT 'SYSTEM_USER',
-    changed_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+def main_menu():
+    init_database()
+    while True:
+        print_banner()
+        print("  1. 📋 View All Accounts & Regional Branches")
+        print("  2. 💵 Deposit Funds (Atomic ACID)")
+        print("  3. 🏧 Withdraw Funds (Subject to Daily Limit)")
+        print("  4. 🔁 Transfer Funds (Inter-Account ACID Transaction)")
+        print("  5. 🚨 Test Daily Limit Breach (Triggers Autonomous Fraud Alert)")
+        print("  6. 🌐 Run Distributed Two-Phase Commit (2PC Delhi -> Mumbai)")
+        print("  7. ⚡ Run High-Speed Bulk Interest Processing (BULK COLLECT & FORALL)")
+        print("  8. 📂 Query Partitioned Transactions (Range Partition Pruning)")
+        print("  9. 📊 Query Materialized Views (Branch Liquidity Precomputed Disk Table)")
+        print(" 10. 📈 Query OLAP Window Functions (Regional Wealth DENSE_RANK)")
+        print(" 11. 🔄 Reset Database to Clean Multi-Branch Seed Data")
+        print("  0. ❌ Exit")
+        print("=" * 78)
 
--- Trigger: Simulating TRG_ACCOUNT_AUDIT
-CREATE TRIGGER trg_account_audit_update
-AFTER UPDATE OF balance ON ACCOUNTS
-FOR EACH ROW
-BEGIN
-    INSERT INTO AUDIT_LOGS (account_no, action_type, old_balance, new_balance, changed_by, changed_at)
-    VALUES (
-        NEW.account_no, 
-        CASE 
-            WHEN NEW.balance > OLD.balance THEN 'CREDIT_UPDATE'
-            ELSE 'DEBIT_UPDATE'
-        END,
-        OLD.balance, 
-        NEW.balance, 
-        'TRIGGER_TRG_ACCOUNT_AUDIT', 
-        CURRENT_TIMESTAMP
-    );
-END;
-""")
-conn.commit()
+        choice = input("Select an option (0-11): ").strip()
 
-# Reset auto-increment to 1001
-cursor.execute("INSERT INTO sqlite_sequence (name, seq) VALUES ('ACCOUNTS', 1000);")
-conn.commit()
-
-def open_account(name, email, phone, acc_type, initial_deposit):
-    cursor.execute("""
-        INSERT INTO ACCOUNTS (holder_name, email, phone, account_type, balance, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-    """, (name, email, phone, acc_type.upper(), initial_deposit))
-    acc_no = cursor.lastrowid
-    if initial_deposit > 0:
-        cursor.execute("""
-            INSERT INTO TRANSACTIONS (to_account, txn_type, amount, status, remarks)
-            VALUES (?, 'DEPOSIT', ?, 'SUCCESS', 'Opening Deposit')
-        """, (acc_no, initial_deposit))
-    conn.commit()
-    print(f"✔ [PACKAGE] Account Created: Acc #{acc_no} | {name} | Initial Bal: ₹{initial_deposit:,.2f}")
-    return acc_no
-
-def deposit(acc_no, amount, remarks='Cash Deposit'):
-    cursor.execute("SELECT balance, status FROM ACCOUNTS WHERE account_no = ?", (acc_no,))
-    row = cursor.fetchone()
-    if not row or row[1] != 'ACTIVE':
-        raise ValueError(f"Account {acc_no} is inactive or does not exist.")
-    
-    new_bal = row[0] + amount
-    cursor.execute("UPDATE ACCOUNTS SET balance = ? WHERE account_no = ?", (new_bal, acc_no))
-    cursor.execute("""
-        INSERT INTO TRANSACTIONS (to_account, txn_type, amount, status, remarks)
-        VALUES (?, 'DEPOSIT', ?, 'SUCCESS', ?)
-    """, (acc_no, amount, remarks))
-    conn.commit()
-    print(f"✔ [DEPOSIT] Deposited ₹{amount:,.2f} into Acc #{acc_no} | New Balance: ₹{new_bal:,.2f}")
-
-def withdraw(acc_no, amount, remarks='Cash Withdrawal'):
-    cursor.execute("SELECT balance, status FROM ACCOUNTS WHERE account_no = ?", (acc_no,))
-    row = cursor.fetchone()
-    if not row or row[1] != 'ACTIVE':
-        raise ValueError(f"Account {acc_no} is inactive or does not exist.")
-    if row[0] < amount:
-        raise ValueError(f"e_insufficient_funds: Available balance ₹{row[0]:,.2f} < Requested ₹{amount:,.2f}")
-    
-    new_bal = row[0] - amount
-    cursor.execute("UPDATE ACCOUNTS SET balance = ? WHERE account_no = ?", (new_bal, acc_no))
-    cursor.execute("""
-        INSERT INTO TRANSACTIONS (from_account, txn_type, amount, status, remarks)
-        VALUES (?, 'WITHDRAWAL', ?, 'SUCCESS', ?)
-    """, (acc_no, amount, remarks))
-    conn.commit()
-    print(f"✔ [WITHDRAW] Debited ₹{amount:,.2f} from Acc #{acc_no} | New Balance: ₹{new_bal:,.2f}")
-
-def transfer_funds(from_acc, to_acc, amount, remarks='Fund Transfer'):
-    if from_acc == to_acc:
-        raise ValueError("e_same_account: Sender and Receiver cannot be same.")
-    
-    # Check sender
-    cursor.execute("SELECT balance, status FROM ACCOUNTS WHERE account_no = ?", (from_acc,))
-    s_row = cursor.fetchone()
-    if not s_row or s_row[1] != 'ACTIVE':
-        raise ValueError(f"e_account_inactive: Sender {from_acc} is invalid.")
-    if s_row[0] < amount:
-        # Record failed txn
-        cursor.execute("""
-            INSERT INTO TRANSACTIONS (from_account, to_account, txn_type, amount, status, remarks)
-            VALUES (?, ?, 'TRANSFER', ?, 'FAILED', 'Insufficient balance')
-        """, (from_acc, to_acc, amount))
-        conn.commit()
-        raise ValueError(f"e_insufficient_funds: Sender Acc #{from_acc} has ₹{s_row[0]:,.2f}, needs ₹{amount:,.2f}")
-    
-    # Check receiver
-    cursor.execute("SELECT status FROM ACCOUNTS WHERE account_no = ?", (to_acc,))
-    r_row = cursor.fetchone()
-    if not r_row or r_row[0] != 'ACTIVE':
-        raise ValueError(f"e_account_inactive: Receiver {to_acc} is invalid.")
-    
-    # Atomic transaction
-    cursor.execute("UPDATE ACCOUNTS SET balance = balance - ? WHERE account_no = ?", (amount, from_acc))
-    cursor.execute("UPDATE ACCOUNTS SET balance = balance + ? WHERE account_no = ?", (amount, to_acc))
-    cursor.execute("""
-        INSERT INTO TRANSACTIONS (from_account, to_account, txn_type, amount, status, remarks)
-        VALUES (?, ?, 'TRANSFER', ?, 'SUCCESS', ?)
-    """, (from_acc, to_acc, amount, remarks))
-    conn.commit()
-    print(f"✔ [TRANSFER] Transferred ₹{amount:,.2f} from Acc #{from_acc} -> Acc #{to_acc}")
-
-def apply_monthly_interest(annual_rate=4.5):
-    print(f"\n--- [CURSOR] APPLYING MONTHLY INTEREST ({annual_rate}% P.A.) ---")
-    cursor.execute("SELECT account_no, balance FROM ACCOUNTS WHERE account_type = 'SAVINGS' AND status = 'ACTIVE' AND balance > 0")
-    savings_accounts = cursor.fetchall()
-    
-    total_paid = 0
-    for acc_no, bal in savings_accounts:
-        monthly_interest = round((bal * (annual_rate / 100)) / 12, 2)
-        if monthly_interest > 0:
-            cursor.execute("UPDATE ACCOUNTS SET balance = balance + ? WHERE account_no = ?", (monthly_interest, acc_no))
-            cursor.execute("""
-                INSERT INTO TRANSACTIONS (to_account, txn_type, amount, status, remarks)
-                VALUES (?, 'INTEREST', ?, 'SUCCESS', ?)
-            """, (acc_no, monthly_interest, f"Monthly Interest @ {annual_rate}%"))
-            total_paid += monthly_interest
-            print(f"  -> Acc #{acc_no} credited with interest: ₹{monthly_interest:,.2f}")
-    conn.commit()
-    print(f"✔ Interest batch completed. Total interest distributed: ₹{total_paid:,.2f}\n")
-
-def print_mini_statement(acc_no):
-    cursor.execute("SELECT holder_name, balance FROM ACCOUNTS WHERE account_no = ?", (acc_no,))
-    acc = cursor.fetchone()
-    if not acc:
-        return
-    print("-" * 75)
-    print(f" MINI STATEMENT | Acc #{acc_no} ({acc[0]}) | Current Balance: ₹{acc[1]:,.2f}")
-    print("-" * 75)
-    print(f"{'TXN ID':<8} {'TYPE':<12} {'AMOUNT':<14} {'STATUS':<10} {'REMARKS'}")
-    print("-" * 75)
-    cursor.execute("""
-        SELECT txn_id, txn_type, amount, status, remarks 
-        FROM TRANSACTIONS 
-        WHERE from_account = ? OR to_account = ? 
-        ORDER BY txn_id DESC LIMIT 5
-    """, (acc_no, acc_no))
-    for t in cursor.fetchall():
-        print(f"#{t[0]:<7} {t[1]:<12} ₹{t[2]:<13,.2f} {t[3]:<10} {t[4]}")
-    print("-" * 75 + "\n")
+        if choice == '1':
+            show_accounts()
+        elif choice == '2':
+            show_accounts()
+            try:
+                acc = int(input("Enter Account Number: "))
+                amt = float(input("Enter Deposit Amount (₹): "))
+                res = BankingEngine.deposit(acc, amt, "Console Deposit")
+                print(f"\n✔ Success! Credited ₹{res['deposited']:,.2f}. New Balance: ₹{res['new_balance']:,.2f}\n")
+            except Exception as e:
+                print(f"\n❌ Error: {e}\n")
+        elif choice == '3':
+            show_accounts()
+            try:
+                acc = int(input("Enter Account Number: "))
+                amt = float(input("Enter Withdrawal Amount (₹): "))
+                res = BankingEngine.withdraw(acc, amt, "Console Withdrawal")
+                print(f"\n✔ Success! Debited ₹{res['withdrawn']:,.2f}. New Balance: ₹{res['remaining_balance']:,.2f}\n")
+            except Exception as e:
+                print(f"\n❌ [EXCEPTION]: {e}\n")
+        elif choice == '4':
+            show_accounts()
+            try:
+                f_acc = int(input("Enter Sender Account Number: "))
+                t_acc = int(input("Enter Receiver Account Number: "))
+                amt = float(input("Enter Transfer Amount (₹): "))
+                res = BankingEngine.transfer_funds(f_acc, t_acc, amt, "Console Transfer")
+                print(f"\n✔ Success! Transferred ₹{amt:,.2f} from Acc #{f_acc} to Acc #{t_acc}.\n")
+            except Exception as e:
+                print(f"\n❌ [EXCEPTION]: {e}\n")
+        elif choice == '5':
+            print("\nSimulating Breach: Attempting ₹70,000 withdrawal on Acc #1004 (Daily Limit: ₹50,000)...")
+            try:
+                BankingEngine.withdraw(1004, 70000.0, "Daily Limit Breach Test")
+            except Exception as e:
+                print(f"✔ Intercepted by Compound Trigger: {e}")
+            alerts = BankingEngine.get_fraud_alerts(limit=1)
+            if alerts:
+                a = alerts[0]
+                print(f"✔ Autonomous Transaction Logged: Alert #{a['alert_id']} | Severity: {a['severity']} | Reason: {a['reason']}\n")
+        elif choice == '6':
+            print("\nExecuting Distributed 2PC: Branch Delhi (BR-DEL-01) -> Branch Mumbai (BR-MUM-01)...")
+            try:
+                res = BankingEngine.simulate_distributed_transfer("BR-DEL-01", "BR-MUM-01", 1001, 1002, 10000.0)
+                print(f"✔ 2PC Completed: Global XID = {res['global_xid']} | Status = {res['status']}\n")
+            except Exception as e:
+                print(f"❌ 2PC Failed: {e}\n")
+        elif choice == '7':
+            rate = float(input("Enter Annual Interest Rate (%) [Default: 4.5]: ") or 4.5)
+            res = BankingEngine.bulk_apply_monthly_interest(annual_rate=rate)
+            print(f"\n✔ BULK COLLECT & FORALL Finished in {res['elapsed_ms']} ms!")
+            print(f"  Credited {res['accounts_credited']} accounts with ₹{res['total_interest_paid']:,.2f}\n")
+        elif choice == '8':
+            part = input("Enter partition name (e.g. P_2025_Q1, P_2025_Q2, or ALL): ").strip().upper() or "ALL"
+            txns = BankingEngine.get_partitioned_transactions(partition=part)
+            print(f"\n--- PARTITIONED TRANSACTIONS ({part}) ---")
+            for t in txns[:6]:
+                print(f"Txn #{t['txn_id']} | {t['txn_date']} | Part: {t['partition_name']} | Type: {t['txn_type']} | ₹{t['amount']:,.2f}")
+            print()
+        elif choice == '9':
+            mviews = BankingEngine.get_branch_summary_mview()
+            print("\n--- MATERIALIZED VIEW: MV_DAILY_BRANCH_SUMMARY ---")
+            print(f"{'Branch Code':<14} | {'Branch Name':<24} | {'Region':<8} | {'Total Liquidity'}")
+            print("-" * 65)
+            for m in mviews:
+                print(f"{m['branch_code']:<14} | {m['branch_name']:<24} | {m['region']:<8} | ₹{m['total_branch_liquidity']:,.2f}")
+            print()
+        elif choice == '10':
+            olap = BankingEngine.get_olap_analytics()
+            print("\n--- OLAP WINDOW FUNCTION: DENSE_RANK() REGIONAL WEALTH ---")
+            for r in olap.get("wealth_ranks", [])[:6]:
+                print(f"Rank #{r['regional_rank']} | {r['holder_name']:<18} | Region: {r['region']:<6} | Balance: ₹{r['balance']:,.2f}")
+            print()
+        elif choice == '11':
+            init_database()
+            print("\n✔ Database has been reset to clean multi-branch ADBMS seed state!\n")
+        elif choice == '0':
+            print("\nExiting ApexBank Terminal. Thank you!\n")
+            break
+        else:
+            print("\nInvalid choice. Please select 0 to 11.\n")
+        
+        input("Press Enter to continue...")
 
 if __name__ == "__main__":
-    print("=" * 75)
-    print("   SMART BANKING & FUND TRANSFER SYSTEM (PL/SQL SIMULATION)")
-    print("=" * 75)
-    
-    # 1. Seed Accounts
-    print("\n--- 1. Creating Sample Bank Accounts ---")
-    a1 = open_account("Rahul Sharma", "rahul@example.com", "9876543210", "SAVINGS", 25000.0)
-    a2 = open_account("Priya Patel", "priya@example.com", "9823456781", "SALARY", 50000.0)
-    a3 = open_account("Amit Verma", "amit@example.com", "9811223344", "CURRENT", 100000.0)
-    a4 = open_account("Neha Singh", "neha@example.com", "9899887766", "SAVINGS", 1500.0)
-    
-    # 2. Operations
-    print("\n--- 2. Executing Banking Transactions ---")
-    deposit(a1, 5000.0, "Cash Deposit via CDM")
-    withdraw(a2, 2000.0, "ATM Cash Withdrawal")
-    transfer_funds(a1, a2, 3000.0, "Rent Payment")
-    
-    # 3. Exception Test
-    print("\n--- 3. Testing Exception Handling (Insufficient Funds) ---")
-    try:
-        transfer_funds(a4, a1, 50000.0, "Overdraw attempt")
-    except Exception as e:
-        print(f"✔ Caught Expected Error: {e}")
-        
-    # 4. Monthly Interest Cursor
-    apply_monthly_interest(4.5)
-    
-    # 5. Statements
-    print_mini_statement(a1)
-    print_mini_statement(a2)
-    
-    # 6. Check Trigger Audit Log
-    print("=" * 75)
-    print("   AUTOMATED AUDIT TRAIL (Generated by Trigger TRG_ACCOUNT_AUDIT)")
-    print("=" * 75)
-    print(f"{'LOG ID':<8} {'ACC NO':<10} {'ACTION TYPE':<16} {'OLD BAL':<14} {'NEW BAL':<14} {'TRIGGER'}")
-    print("-" * 75)
-    cursor.execute("SELECT log_id, account_no, action_type, old_balance, new_balance, changed_by FROM AUDIT_LOGS")
-    for row in cursor.fetchall():
-        print(f"#{row[0]:<7} Acc #{row[1]:<6} {row[2]:<16} ₹{row[3]:<13,.2f} ₹{row[4]:<13,.2f} {row[5]}")
-    print("=" * 75)
+    main_menu()

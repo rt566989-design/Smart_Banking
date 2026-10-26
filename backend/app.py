@@ -1,6 +1,6 @@
 """
-Smart Banking & Fund Transfer System - Backend Flask Server
-Provides RESTful APIs and serves the modern frontend application.
+Smart Banking & ADBMS Enterprise Fund Transfer System - Backend Flask Server
+Provides RESTful APIs for both Core Banking PL/SQL and Advanced DBMS Features.
 """
 import os
 import sqlite3
@@ -29,7 +29,7 @@ def serve_static(path):
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 # -----------------------------------------------------------------------------
-# API Endpoints
+# Core Banking API Endpoints
 # -----------------------------------------------------------------------------
 @app.route("/api/stats", methods=["GET"])
 def api_stats():
@@ -49,11 +49,15 @@ def api_create_account():
         phone = data.get("phone", "")
         acc_type = data.get("account_type", "SAVINGS")
         initial_deposit = float(data.get("initial_deposit", 0.0))
+        branch_code = data.get("branch_code", "BR-DEL-01")
 
         if not name or not email or not phone:
             return jsonify({"success": False, "error": "Name, Email, and Phone are required."}), 400
 
-        result = BankingEngine.open_account(name, email, phone, acc_type, initial_deposit)
+        address = {"street": "12 Main St", "city": "Delhi", "state": "Delhi", "pincode": "110001"}
+        kyc = {"doc_type": "AADHAAR", "doc_number": "4589-1234-9012"}
+
+        result = BankingEngine.open_account_ordbms(name, email, [phone], address, kyc, branch_code, acc_type, initial_deposit)
         return jsonify({"success": True, "data": result, "message": f"Account #{result['account_no']} created successfully!"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -101,7 +105,7 @@ def api_transfer():
         return jsonify({
             "success": True, 
             "data": result, 
-            "message": f"✔ Atomic Transfer of ₹{amount:,.2f} from Acc #{from_acc} to Acc #{to_acc} successful [COMMIT]!"
+            "message": f"Atomic Transfer of Rs. {amount:,.2f} from Acc #{from_acc} to Acc #{to_acc} successful [COMMIT]!"
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -111,11 +115,11 @@ def api_interest():
     data = request.json or {}
     try:
         rate = float(data.get("rate", 4.5))
-        result = BankingEngine.apply_monthly_interest(rate)
+        result = BankingEngine.bulk_apply_monthly_interest(rate)
         return jsonify({
             "success": True,
             "data": result,
-            "message": f"✔ Batch Cursor Finished: ₹{result['total_interest_paid']:,.2f} credited across {result['accounts_credited']} Savings Accounts."
+            "message": f"Batch Finished: Rs. {result['total_interest_paid']:,.2f} credited across {result['accounts_credited']} Accounts."
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -131,6 +135,88 @@ def api_audit_logs():
     limit = int(request.args.get("limit", 50))
     logs = BankingEngine.get_audit_logs(limit)
     return jsonify({"success": True, "data": logs})
+
+# -----------------------------------------------------------------------------
+# ADBMS Advanced Endpoints
+# -----------------------------------------------------------------------------
+@app.route("/api/adbms/fraud-alerts", methods=["GET"])
+def api_adbms_fraud_alerts():
+    alerts = BankingEngine.get_fraud_alerts()
+    return jsonify({"success": True, "data": alerts})
+
+@app.route("/api/adbms/fraud-alerts/test", methods=["POST"])
+def api_adbms_test_fraud():
+    data = request.json or {}
+    acc_no = int(data.get("account_no", 1004))
+    amount = float(data.get("amount", 999999.0))
+    BankingEngine.log_fraud_alert_autonomous(
+        acc_no, "HIGH",
+        f"Simulated Autonomous Security Violation: Overdraft attempt of ₹{amount:,.2f}",
+        amount
+    )
+    return jsonify({"success": True, "message": "Autonomous fraud log committed independently of transaction state."})
+
+@app.route("/api/adbms/distributed-txns", methods=["GET", "POST"])
+def api_adbms_distributed():
+    if request.method == "POST":
+        data = request.json or {}
+        try:
+            source_b = data.get("source_branch", "BR-DEL-01")
+            target_b = data.get("target_branch", "BR-BLR-01")
+            from_acc = int(data.get("from_account", 1001))
+            to_acc = int(data.get("to_account", 1003))
+            amount = float(data.get("amount", 1000.0))
+            sim_fail = data.get("simulate_fail", "NONE")
+            result = BankingEngine.simulate_distributed_transfer(source_b, target_b, from_acc, to_acc, amount, sim_fail)
+            return jsonify({"success": True, "data": result, "message": f"Distributed 2PC Transaction Committed! Global XID: {result['global_xid']}"})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+    else:
+        dtxns = BankingEngine.get_distributed_txns()
+        return jsonify({"success": True, "data": dtxns})
+
+@app.route("/api/adbms/partitions/transactions", methods=["GET"])
+def api_adbms_part_txns():
+    part = request.args.get("partition", "ALL")
+    txns = BankingEngine.get_partitioned_transactions(part)
+    return jsonify({"success": True, "data": txns, "partition": part})
+
+@app.route("/api/adbms/partitions/accounts", methods=["GET"])
+def api_adbms_part_accs():
+    part = request.args.get("partition", "ALL")
+    accs = BankingEngine.get_partitioned_accounts(part)
+    return jsonify({"success": True, "data": accs, "partition": part})
+
+@app.route("/api/adbms/mviews/branches", methods=["GET"])
+def api_adbms_mv_branches():
+    rows = BankingEngine.get_branch_summary_mview()
+    return jsonify({"success": True, "data": rows})
+
+@app.route("/api/adbms/mviews/networth", methods=["GET"])
+def api_adbms_mv_networth():
+    rows = BankingEngine.get_customer_networth_mview()
+    return jsonify({"success": True, "data": rows})
+
+@app.route("/api/adbms/mviews/refresh", methods=["POST"])
+def api_adbms_mv_refresh():
+    res = BankingEngine.refresh_all_mviews()
+    return jsonify({"success": True, "data": res, "message": "Materialized Views fast-refreshed successfully."})
+
+@app.route("/api/adbms/bulk/fee", methods=["POST"])
+def api_adbms_bulk_fee():
+    data = request.json or {}
+    try:
+        fee = float(data.get("fee_amount", 150.0))
+        tier = float(data.get("min_tier", 2000.0))
+        res = BankingEngine.bulk_deduct_service_fee(fee, tier)
+        return jsonify({"success": True, "data": res, "message": f"Bulk FORALL applied: ₹{res['total_fees_collected']:,.2f} collected from {res['accounts_charged']} accounts in {res['elapsed_ms']}ms."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+@app.route("/api/adbms/olap", methods=["GET"])
+def api_adbms_olap():
+    olap = BankingEngine.get_olap_analytics()
+    return jsonify({"success": True, "data": olap})
 
 @app.route("/api/execute-sql", methods=["POST"])
 def api_execute_sql():
@@ -159,13 +245,13 @@ def api_execute_sql():
 def api_reset():
     try:
         init_database()
-        return jsonify({"success": True, "message": "Database reset to initial 4 sample accounts."})
+        return jsonify({"success": True, "message": "Database reset to ADBMS initial multi-branch dataset."})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 def start_server(port=5000):
     print(f"\n=======================================================")
-    print(f"  Smart Banking Full-Stack Server Running on:")
+    print(f"  ADBMS & PL/SQL Smart Banking Server Running on:")
     print(f"  ➜ http://127.0.0.1:{port}")
     print(f"=======================================================\n")
     app.run(host="0.0.0.0", port=port, debug=False)

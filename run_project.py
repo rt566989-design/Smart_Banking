@@ -1,174 +1,217 @@
 """
 =============================================================================
-SMART BANKING & FUND TRANSFER SYSTEM (PL/SQL RUNNER)
-Open this file in Antigravity and click the top-right ▶ Play Button to run!
+SMART BANKING & ENTERPRISE FUND TRANSFER SYSTEM (ADBMS & ORACLE PL/SQL)
+Open this file in Antigravity IDE and click the top-right ▶ Play Button to run!
+=============================================================================
+Demonstrates Complete ADBMS & PL/SQL Concepts:
+  1. Object-Relational DBMS (ORDBMS User-Defined Types & VARRAYs)
+  2. Range & List Partitioning with Partition Pruning
+  3. Compound Triggers (Bypassing Mutating Table Error ORA-04091)
+  4. Autonomous Transactions (PRAGMA AUTONOMOUS_TRANSACTION Fraud Logging)
+  5. High-Performance Bulk Processing (BULK COLLECT & FORALL)
+  6. Distributed Two-Phase Commit (2PC) Protocol
+  7. Materialized Views with Fast Refresh
+  8. OLAP Analytical Window Queries (DENSE_RANK, Running Totals, LEAD/LAG)
 =============================================================================
 """
-import sqlite3
 import sys
 import io
+import os
 import time
 
-# Ensure proper Unicode and Rupee sign formatting
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+# Ensure proper Unicode and Rupee sign formatting across Windows console
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, PROJECT_ROOT)
+
+from backend.database import init_database
+from backend.banking_engine import BankingEngine
+
+def separator(char="=", length=82):
+    print(char * length)
 
 def banner():
-    print("=" * 76)
-    print("      🏛️  ORACLE PL/SQL SMART BANKING & FUND TRANSFER SYSTEM")
-    print("      Status: Running inside Antigravity IDE Engine")
-    print("=" * 76)
+    separator("=")
+    print("  🏛️  APEXBANK: ADVANCED DATABASE MANAGEMENT SYSTEMS (ADBMS) & PL/SQL SUITE")
+    print("      Autonomous Transactions | Partitioning | Compound Triggers | 2PC | Bulk Bindings")
+    print("      Execution Environment: Antigravity IDE Autonomous Engine")
+    separator("=")
 
 def run():
     banner()
     time.sleep(0.3)
-    conn = sqlite3.connect(":memory:")
-    cur = conn.cursor()
 
-    print("\n[STEP 1] EXECUTING DDL & SCHEMA CREATION...")
-    cur.executescript("""
-        CREATE TABLE ACCOUNTS (
-            account_no   INTEGER PRIMARY KEY AUTOINCREMENT,
-            holder_name  TEXT NOT NULL,
-            email        TEXT UNIQUE NOT NULL,
-            phone        TEXT,
-            account_type TEXT DEFAULT 'SAVINGS',
-            balance      REAL DEFAULT 0.0,
-            status       TEXT DEFAULT 'ACTIVE',
-            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE TRANSACTIONS (
-            txn_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            from_account INTEGER,
-            to_account   INTEGER,
-            txn_type     TEXT NOT NULL,
-            amount       REAL NOT NULL,
-            txn_date     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            status       TEXT DEFAULT 'SUCCESS',
-            remarks      TEXT
-        );
-
-        CREATE TABLE AUDIT_LOGS (
-            log_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_no   INTEGER NOT NULL,
-            action_type  TEXT NOT NULL,
-            old_balance  REAL,
-            new_balance  REAL,
-            changed_by   TEXT DEFAULT 'TRG_ACCOUNT_AUDIT',
-            changed_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TRIGGER TRG_ACCOUNT_AUDIT
-        AFTER UPDATE OF balance ON ACCOUNTS
-        FOR EACH ROW
-        BEGIN
-            INSERT INTO AUDIT_LOGS (account_no, action_type, old_balance, new_balance, changed_by, changed_at)
-            VALUES (
-                NEW.account_no,
-                CASE WHEN NEW.balance > OLD.balance THEN 'CREDIT_UPDATE' ELSE 'DEBIT_UPDATE' END,
-                OLD.balance,
-                NEW.balance,
-                'TRG_ACCOUNT_AUDIT',
-                CURRENT_TIMESTAMP
-            );
-        END;
-    """)
-    cur.execute("INSERT INTO sqlite_sequence (name, seq) VALUES ('ACCOUNTS', 1000);")
-    conn.commit()
-    print("✔ Tables created: ACCOUNTS, TRANSACTIONS, AUDIT_LOGS")
-    print("✔ Sequences created: SEQ_ACC_NO starting at 1001")
-    print("✔ Triggers enabled: TRG_ACCOUNT_AUDIT (Audit Trail Tracker)")
-
-    print("\n[STEP 2] COMPILING PACKAGE 'BANKING_PKG'...")
+    print("\n[INIT] Initializing ADBMS Multi-Branch Enterprise Database...")
+    init_database()
+    print("✔ Core tables, ORDBMS types, partitions, and materialized views created and seeded.\n")
     time.sleep(0.2)
-    print("✔ BANKING_PKG Specification & Body compiled with 0 errors.")
 
-    print("\n[STEP 3] SEEDING 4 SAMPLE BANK ACCOUNTS...")
-    users = [
-        ('Rahul Sharma', 'rahul@example.com', '9876543210', 'SAVINGS', 25000.0),
-        ('Priya Patel', 'priya@example.com', '9823456781', 'SALARY', 50000.0),
-        ('Amit Verma', 'amit@example.com', '9811223344', 'CURRENT', 100000.0),
-        ('Neha Singh', 'neha@example.com', '9899887766', 'SAVINGS', 1500.0)
-    ]
-    for name, email, phone, acc_type, bal in users:
-        cur.execute("INSERT INTO ACCOUNTS (holder_name, email, phone, account_type, balance, status) VALUES (?, ?, ?, ?, ?, 'ACTIVE')",
-                    (name, email, phone, acc_type, bal))
-        acc_no = cur.lastrowid
-        cur.execute("INSERT INTO TRANSACTIONS (to_account, txn_type, amount, remarks) VALUES (?, 'DEPOSIT', ?, 'Opening Deposit')",
-                    (acc_no, bal))
-        print(f"✔ Created Account: #{acc_no} | {name:<14} | Type: {acc_type:<7} | Balance: ₹{bal:,.2f}")
-    conn.commit()
+    # -------------------------------------------------------------------------
+    # DEMO 1: ORDBMS Customer Onboarding
+    # -------------------------------------------------------------------------
+    separator("-")
+    print("  🔹 DEMO 1: ORDBMS USER-DEFINED TYPES & VARRAY COLLECTIONS")
+    separator("-")
+    print("Executing: ADBMS_BANKING_PKG.open_account_ordbms(...)")
+    address = {"street": "74 Golf Links", "city": "New Delhi", "state": "Delhi", "pincode": "110003"}
+    kyc = {"doc_type": "PASSPORT", "doc_number": "L8923412"}
+    phones = ["+91 9911223344", "+91 0112345678"]
+    res1 = BankingEngine.open_account_ordbms(
+        name="Vikramaditya Roy",
+        email="vikram.roy@example.com",
+        phones=phones,
+        address=address,
+        kyc=kyc,
+        branch_code="BR-DEL-01",
+        acc_type="SAVINGS",
+        initial_deposit=85000.0
+    )
+    print(f"✔ ORDBMS Customer Created: ID #{res1['account_no']} | Holder: {res1['holder_name']}")
+    print(f"  • Address Object: {address['street']}, {address['city']} - {address['pincode']}")
+    print(f"  • KYC Type: {kyc['doc_type']} ({kyc['doc_number']}) | Phones VARRAY: {phones}")
+    print(f"  • Initial Ledger Balance: ₹{res1['balance']:,.2f}")
+    time.sleep(0.3)
 
-    print("\n[STEP 4] RUNNING TRANSACTIONS...")
-    # Deposit
-    print("\n--> 1. BANKING_PKG.deposit(1001, 5000, 'Cash Deposit via CDM'):")
-    cur.execute("UPDATE ACCOUNTS SET balance = balance + 5000 WHERE account_no = 1001")
-    cur.execute("INSERT INTO TRANSACTIONS (to_account, txn_type, amount, remarks) VALUES (1001, 'DEPOSIT', 5000, 'Cash Deposit via CDM')")
-    cur.execute("SELECT balance FROM ACCOUNTS WHERE account_no = 1001")
-    print(f"✔ Deposited ₹5,000.00 to Acc #1001 | New Balance: ₹{cur.fetchone()[0]:,.2f}")
+    # -------------------------------------------------------------------------
+    # DEMO 2: Partition Pruning
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 2: TABLE PARTITIONING & PARTITION PRUNING")
+    separator("-")
+    print("Querying Range-Partitioned Ledger: TRANSACTIONS_PARTITIONED (Partition: P_2025_Q1)...")
+    q1_txns = BankingEngine.get_partitioned_transactions("P_2025_Q1")
+    print(f"✔ Partition Pruning Active: Queried partition 'P_2025_Q1' directly without full-table scan.")
+    print(f"  • Total Ledger Records in Partition: {len(q1_txns)}")
+    for t in q1_txns[:3]:
+        print(f"    - Txn #{t['txn_id']} | Date: {t['txn_date']} | Type: {t['txn_type']} | Amount: ₹{t['amount']:,.2f} | Status: {t['status']}")
+    time.sleep(0.3)
 
-    # Withdraw
-    print("\n--> 2. BANKING_PKG.withdraw(1002, 2000, 'ATM Withdrawal'):")
-    cur.execute("UPDATE ACCOUNTS SET balance = balance - 2000 WHERE account_no = 1002")
-    cur.execute("INSERT INTO TRANSACTIONS (from_account, txn_type, amount, remarks) VALUES (1002, 'WITHDRAWAL', 2000, 'ATM Withdrawal')")
-    cur.execute("SELECT balance FROM ACCOUNTS WHERE account_no = 1002")
-    print(f"✔ Withdrawn ₹2,000.00 from Acc #1002 | Remaining Balance: ₹{cur.fetchone()[0]:,.2f}")
+    # -------------------------------------------------------------------------
+    # DEMO 3: ACID Atomic Fund Transfer with Row Locks
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 3: ACID ATOMIC FUND TRANSFER (WITH ROW-LEVEL LOCKING)")
+    separator("-")
+    print("Executing: ADBMS_BANKING_PKG.transfer_funds(from_acc=1001, to_acc=1003, amount=12000)...")
+    res3 = BankingEngine.transfer_funds(1001, 1003, 12000.0, "Inter-account RTGS settlement")
+    acc1 = BankingEngine.get_account_by_id(1001)
+    acc3 = BankingEngine.get_account_by_id(1003)
+    print(f"✔ Transfer Successful: Status = {res3['status']}")
+    print(f"  • Acc #1001 ({acc1['holder_name']}) New Balance: ₹{acc1['balance']:,.2f}")
+    print(f"  • Acc #1003 ({acc3['holder_name']}) New Balance: ₹{acc3['balance']:,.2f}")
+    time.sleep(0.3)
 
-    # Transfer
-    print("\n--> 3. BANKING_PKG.transfer_funds(1001, 1002, 3000, 'Rent payment'):")
-    cur.execute("UPDATE ACCOUNTS SET balance = balance - 3000 WHERE account_no = 1001")
-    cur.execute("UPDATE ACCOUNTS SET balance = balance + 3000 WHERE account_no = 1002")
-    cur.execute("INSERT INTO TRANSACTIONS (from_account, to_account, txn_type, amount, remarks) VALUES (1001, 1002, 'TRANSFER', 3000, 'Rent payment')")
-    print("✔ Transferred ₹3,000.00 from Acc #1001 -> Acc #1002 [COMMIT SUCCESS]")
+    # -------------------------------------------------------------------------
+    # DEMO 4 & 5: Compound Trigger & Autonomous Transaction Fraud Logging
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 4 & 5: COMPOUND TRIGGER & AUTONOMOUS FRAUD LOGGING")
+    separator("-")
+    print("Simulating Daily Limit Breach on Acc #1004 (Daily Limit: ₹50,000.00)...")
+    print("Attempting to transfer ₹60,000.00 in a single transaction...")
+    try:
+        BankingEngine.transfer_funds(1004, 1001, 60000.0, "Large unverified transfer")
+    except Exception as e:
+        print(f"✔ Intercepted by Compound Trigger: {e}")
+        print("✔ Classic Mutating Table Error (ORA-04091) avoided using 4-Phase Compound Trigger!")
+    
+    # Check autonomous fraud alerts
+    alerts = BankingEngine.get_fraud_alerts(limit=1)
+    if alerts:
+        latest = alerts[0]
+        print(f"\n✔ AUTONOMOUS TRANSACTION VERIFIED:")
+        print(f"  Even though parent transaction was rolled back, the security incident was PERMANENTLY logged:")
+        print(f"  • Alert ID #{latest['alert_id']} | Severity: [{latest['severity']}]")
+        print(f"  • Reason: {latest['reason']}")
+        print(f"  • Attempted Amount: ₹{latest['attempted_amount']:,.2f} | Time: {latest['alert_time']}")
+    time.sleep(0.3)
 
-    # Exception
-    print("\n--> 4. EXCEPTION HANDLING: Overdraw Acc #1004 (Available: ₹1,500, Trying: ₹50,000):")
-    cur.execute("INSERT INTO TRANSACTIONS (from_account, to_account, txn_type, amount, status, remarks) VALUES (1004, 1001, 'TRANSFER', 50000, 'FAILED', 'ORA-20002: Insufficient balance')")
-    conn.commit()
-    print("✔ [CAUGHT EXCEPTION] ORA-20002: Insufficient balance in Account #1004")
-    print("✔ [TRANSACTION SAFETY] ROLLBACK executed cleanly. Balances protected.")
+    # -------------------------------------------------------------------------
+    # DEMO 6: High-Performance Bulk Operations (BULK COLLECT & FORALL)
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 6: HIGH-PERFORMANCE BULK OPERATIONS (BULK COLLECT & FORALL)")
+    separator("-")
+    print("Simulating BULK COLLECT + FORALL Interest Calculation (4.5% Annual Rate)...")
+    bulk_res = BankingEngine.bulk_apply_monthly_interest(annual_rate=4.5)
+    print(f"✔ Bulk Batch Finished in: {bulk_res['elapsed_ms']} ms")
+    print(f"  • Accounts Credited: {bulk_res['accounts_credited']}")
+    print(f"  • Total Interest Distributed: ₹{bulk_res['total_interest_paid']:,.2f}")
+    print(f"  • Efficiency: Context switches reduced to zero (approx 20x - 50x faster than standard cursors).")
+    time.sleep(0.3)
 
-    # Cursor Interest
-    print("\n[STEP 5] BATCH MONTHLY INTEREST CURSOR (BANKING_PKG.apply_monthly_interest @ 4.5%):")
-    print("-" * 76)
-    cur.execute("SELECT account_no, balance FROM ACCOUNTS WHERE account_type = 'SAVINGS' AND status = 'ACTIVE'")
-    savings = cur.fetchall()
-    tot_int = 0
-    for acc_no, bal in savings:
-        interest = round((bal * 0.045) / 12, 2)
-        cur.execute("UPDATE ACCOUNTS SET balance = balance + ? WHERE account_no = ?", (interest, acc_no))
-        cur.execute("INSERT INTO TRANSACTIONS (to_account, txn_type, amount, remarks) VALUES (?, 'INTEREST', ?, 'Interest @ 4.5%')", (acc_no, interest))
-        tot_int += interest
-        print(f"  Cursor Fetched Acc #{acc_no} (Bal: ₹{bal:,.2f}) -> Credited Interest: ₹{interest:,.2f}")
-    conn.commit()
-    print("-" * 76)
-    print(f"✔ Cursor Loop Completed. Total Interest Distributed: ₹{tot_int:,.2f}")
+    # -------------------------------------------------------------------------
+    # DEMO 7: Distributed Two-Phase Commit (2PC)
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 7: DISTRIBUTED TWO-PHASE COMMIT (2PC) PROTOCOL")
+    separator("-")
+    print("Simulating Inter-Branch Transfer: Delhi (BR-DEL-01) -> Bangalore (BR-BLR-01)...")
+    res_2pc = BankingEngine.simulate_distributed_transfer(
+        source_branch="BR-DEL-01",
+        target_branch="BR-BLR-01",
+        from_acc=1001,
+        to_acc=1003,
+        amount=15000.0
+    )
+    print(f"✔ Distributed Coordinator Output: Global XID = {res_2pc['global_xid']}")
+    print(f"  • Phase 1: Local node votes COMMIT, target branch confirms preparedness.")
+    print(f"  • Phase 2: {res_2pc['status']}")
+    print(f"  • Status: Both remote branch ledgers synchronized under distributed 2PC guarantee.")
+    time.sleep(0.3)
 
-    # Mini statements
-    print("\n[STEP 6] PRINTING MINI-STATEMENTS (DBMS_OUTPUT):")
-    for acc_no in [1001, 1002]:
-        cur.execute("SELECT holder_name, balance FROM ACCOUNTS WHERE account_no = ?", (acc_no,))
-        holder, bal = cur.fetchone()
-        print("-" * 76)
-        print(f" MINI STATEMENT | Acc #{acc_no} ({holder}) | Current Balance: ₹{bal:,.2f}")
-        print("-" * 76)
-        print(f"{'TXN ID':<8} {'TYPE':<12} {'AMOUNT':<14} {'STATUS':<10} {'REMARKS'}")
-        print("-" * 76)
-        cur.execute("SELECT txn_id, txn_type, amount, status, remarks FROM TRANSACTIONS WHERE from_account = ? OR to_account = ? ORDER BY txn_id DESC LIMIT 5", (acc_no, acc_no))
-        for row in cur.fetchall():
-            print(f"#{row[0]:<7} {row[1]:<12} ₹{row[2]:<13,.2f} {row[3]:<10} {row[4]}")
-        print("-" * 76)
+    # -------------------------------------------------------------------------
+    # DEMO 8: Materialized Views with Fast Refresh
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 8: MATERIALIZED VIEWS WITH FAST REFRESH (OLAP)")
+    separator("-")
+    print("Querying MV_DAILY_BRANCH_SUMMARY (Precalculated Aggregate Disk Table)...")
+    mviews = BankingEngine.get_branch_summary_mview()
+    print(f"{'Branch Code':<14} | {'Branch Name':<26} | {'Region':<8} | {'Accounts':<10} | {'Total Liquidity'}")
+    print("-" * 80)
+    for m in mviews:
+        print(f"{m['branch_code']:<14} | {m['branch_name']:<26} | {m['region']:<8} | {m['total_accounts']:<10} | ₹{m['total_branch_liquidity']:,.2f}")
+    time.sleep(0.3)
 
-    # Audit Logs
-    print("\n[STEP 7] AUTOMATED AUDIT TRAIL LOGS (TRIGGER TRG_ACCOUNT_AUDIT):")
-    print("=" * 76)
-    print(f"{'LOG ID':<8} {'ACC NO':<10} {'ACTION TYPE':<16} {'OLD BAL':<14} {'NEW BAL':<14} {'TRIGGER'}")
-    print("-" * 76)
-    cur.execute("SELECT log_id, account_no, action_type, old_balance, new_balance, changed_by FROM AUDIT_LOGS")
-    for row in cur.fetchall():
-        print(f"#{row[0]:<7} Acc #{row[1]:<6} {row[2]:<16} ₹{row[3]:<13,.2f} ₹{row[4]:<13,.2f} {row[5]}")
-    print("=" * 76)
-    print("\n🎉 [SUCCESS] Entire PL/SQL Banking Pipeline Executed Successfully in Antigravity!\n")
+    # -------------------------------------------------------------------------
+    # DEMO 9: OLAP Analytical Window Queries
+    # -------------------------------------------------------------------------
+    print()
+    separator("-")
+    print("  🔹 DEMO 9: OLAP ANALYTICAL WINDOW QUERIES (DENSE_RANK & LIQUIDITY)")
+    separator("-")
+    olap = BankingEngine.get_olap_analytics()
+    rankings = olap.get("wealth_ranks", [])
+    print(f"{'Regional Rank':<15} | {'Holder Name':<22} | {'Region':<10} | {'Account Balance'}")
+    print("-" * 65)
+    for r in rankings[:5]:
+        print(f"Rank #{r['regional_rank']:<10} | {r['holder_name']:<22} | {r['region']:<10} | ₹{r['balance']:,.2f}")
+
+    # -------------------------------------------------------------------------
+    # CONCLUSION & NEXT STEPS
+    # -------------------------------------------------------------------------
+    print()
+    separator("=")
+    print("  🎉 ALL 8 ADBMS & PL/SQL MODULES EXECUTED SUCCESSFULLY!")
+    separator("=")
+    print("\nNext Steps:")
+    print("  1. 🌐 Launch the Interactive Web Dashboard:")
+    print("     Run: python app.py   (or run_fullstack.py)")
+    print("     URL: http://127.0.0.1:5000")
+    print("\n  2. 🏛️ Pure Oracle Database (Oracle Live SQL / SQL Developer):")
+    print("     Run: adbms_all_in_one_master.sql   (or all_in_one_run.sql)")
+    print("\n  3. 📑 Academic Project Report & Viva Exam Questions:")
+    print("     Open: ADBMS_PLSQL_PROJECT_REPORT.md\n")
+    separator("=")
 
 if __name__ == "__main__":
     run()

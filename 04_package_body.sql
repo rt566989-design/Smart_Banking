@@ -1,10 +1,11 @@
 -- =====================================================================
--- SMART BANKING & FUND TRANSFER SYSTEM
--- File: 04_package_body.sql
--- Description: Package Body implementation for BANKING_PKG
+-- ADVANCED DATABASE MANAGEMENT SYSTEMS (ADBMS) & ORACLE PL/SQL
+-- SMART BANKING & ENTERPRISE FUND TRANSFER SYSTEM
+-- File: 05_adbms_package_body.sql
+-- Description: Package Body implementation for ADBMS_BANKING_PKG
 -- =====================================================================
 
-CREATE OR REPLACE PACKAGE BODY BANKING_PKG AS
+CREATE OR REPLACE PACKAGE BODY ADBMS_BANKING_PKG AS
 
     -- =================================================================
     -- HELPER FUNCTION: Check if account exists and is ACTIVE
@@ -23,7 +24,7 @@ CREATE OR REPLACE PACKAGE BODY BANKING_PKG AS
     END is_account_active;
 
     -- =================================================================
-    -- FUNCTION: Get current account balance
+    -- HELPER FUNCTION: Get current account balance
     -- =================================================================
     FUNCTION get_balance(p_account_no IN NUMBER) RETURN NUMBER IS
         v_balance ACCOUNTS.balance%TYPE;
@@ -35,348 +36,531 @@ CREATE OR REPLACE PACKAGE BODY BANKING_PKG AS
         RETURN v_balance;
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(-20006, 'Account number ' || p_account_no || ' does not exist.');
+            RAISE_APPLICATION_ERROR(-20006, 'Account No ' || p_account_no || ' does not exist.');
     END get_balance;
 
     -- =================================================================
-    -- FUNCTION: Calculate single month interest for an account
+    -- PROCEDURE 1: ORDBMS Customer & Account Onboarding
     -- =================================================================
-    FUNCTION calculate_monthly_interest(
-        p_account_no  IN NUMBER, 
-        p_annual_rate IN NUMBER DEFAULT 4.0
-    ) RETURN NUMBER IS
-        v_balance NUMBER;
-    BEGIN
-        v_balance := get_balance(p_account_no);
-        RETURN ROUND(v_balance * (p_annual_rate / 100) / 12, 2);
-    END calculate_monthly_interest;
-
-    -- =================================================================
-    -- PROCEDURE 1: Open a new account
-    -- =================================================================
-    PROCEDURE open_account(
+    PROCEDURE open_account_ordbms (
         p_name            IN  VARCHAR2,
         p_email           IN  VARCHAR2,
-        p_phone           IN  VARCHAR2,
-        p_type            IN  VARCHAR2,
+        p_phones          IN  PHONE_ARRAY_TYP,
+        p_address         IN  ADDRESS_TYP,
+        p_kyc             IN  KYC_DOC_TYP,
+        p_branch_code     IN  VARCHAR2,
+        p_account_type    IN  VARCHAR2,
         p_initial_deposit IN  NUMBER,
         p_account_no      OUT NUMBER
     ) IS
+        v_cust_id NUMBER(10);
     BEGIN
         IF p_initial_deposit < 0 THEN
             RAISE_APPLICATION_ERROR(-20004, 'Initial deposit cannot be negative.');
         END IF;
 
-        p_account_no := SEQ_ACC_NO.NEXTVAL;
-
-        INSERT INTO ACCOUNTS (
-            account_no, holder_name, email, phone, account_type, balance, status
+        -- 1. Create ORDBMS Customer Record with Object Types and VARRAY
+        v_cust_id := SEQ_ACC_NO.NEXTVAL;
+        INSERT INTO CUSTOMERS_OBJ (
+            customer_id, full_name, email, phones, home_address, kyc_document
         ) VALUES (
-            p_account_no, p_name, p_email, p_phone, UPPER(p_type), p_initial_deposit, 'ACTIVE'
+            v_cust_id, p_name, p_email, p_phones, p_address, p_kyc
         );
 
-        -- If initial deposit > 0, record opening transaction
+        -- 2. Create Account Record
+        p_account_no := v_cust_id;
+        INSERT INTO ACCOUNTS (
+            account_no, customer_id, branch_code, holder_name, email,
+            phone, account_type, balance, daily_limit, status
+        ) VALUES (
+            p_account_no, v_cust_id, p_branch_code, p_name, p_email,
+            CASE WHEN p_phones.COUNT > 0 THEN p_phones(1) ELSE NULL END,
+            UPPER(p_account_type), p_initial_deposit, 50000.00, 'ACTIVE'
+        );
+
+        -- 3. Sync into List-Partitioned Accounts Table
+        INSERT INTO ACCOUNTS_PARTITIONED (
+            account_no, holder_name, branch_code, account_type, balance, status
+        ) VALUES (
+            p_account_no, p_name, p_branch_code, UPPER(p_account_type), p_initial_deposit, 'ACTIVE'
+        );
+
+        -- 4. Record Initial Deposit Transaction if applicable
         IF p_initial_deposit > 0 THEN
             INSERT INTO TRANSACTIONS (
                 txn_id, to_account, txn_type, amount, status, remarks
             ) VALUES (
                 SEQ_TXN_ID.NEXTVAL, p_account_no, 'DEPOSIT', p_initial_deposit, 'SUCCESS', 'Opening Deposit'
             );
+
+            INSERT INTO TRANSACTIONS_PARTITIONED (
+                txn_id, to_account, txn_type, amount, txn_date, status, remarks
+            ) VALUES (
+                SEQ_TXN_ID.CURRVAL, p_account_no, 'DEPOSIT', p_initial_deposit, TRUNC(SYSDATE), 'SUCCESS', 'Opening Deposit'
+            );
         END IF;
 
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('✔ Account created successfully! Account No: ' || p_account_no || ' | Holder: ' || p_name);
+        DBMS_OUTPUT.PUT_LINE('✔ ORDBMS Account successfully created: Acc No ' || p_account_no || ' for ' || p_name);
     EXCEPTION
         WHEN OTHERS THEN
             ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('✘ Failed to create account: ' || SQLERRM);
+            LOG_FRAUD_ALERT_AUTONOMOUS(0, 'MEDIUM', 'Account onboarding failure: ' || SQLERRM, p_initial_deposit);
             RAISE;
-    END open_account;
+    END open_account_ordbms;
 
     -- =================================================================
-    -- PROCEDURE 2: Deposit money
+    -- PROCEDURE 2: Deposit Money (Row-Level Locking & Partition Sync)
     -- =================================================================
-    PROCEDURE deposit(
+    PROCEDURE deposit (
         p_account_no IN NUMBER,
         p_amount     IN NUMBER,
         p_remarks    IN VARCHAR2 DEFAULT 'Cash Deposit'
     ) IS
+        v_current_bal NUMBER;
+        v_status      ACCOUNTS.status%TYPE;
+        v_txn_id      NUMBER;
     BEGIN
         IF p_amount <= 0 THEN
-            RAISE_APPLICATION_ERROR(-20004, 'Deposit amount must be greater than zero.');
+            RAISE_APPLICATION_ERROR(-20004, 'Deposit amount must be strictly greater than 0.');
         END IF;
 
-        IF NOT is_account_active(p_account_no) THEN
-            RAISE_APPLICATION_ERROR(-20003, 'Account ' || p_account_no || ' is inactive or does not exist.');
+        -- Acquire exclusive row-level pessimistic lock (WAIT 5 seconds to prevent indefinite deadlock)
+        SELECT balance, status INTO v_current_bal, v_status
+        FROM ACCOUNTS
+        WHERE account_no = p_account_no
+        FOR UPDATE WAIT 5;
+
+        IF v_status <> 'ACTIVE' THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Account ' || p_account_no || ' is not ACTIVE (Current Status: ' || v_status || ').');
         END IF;
 
-        UPDATE ACCOUNTS 
-        SET balance = balance + p_amount 
+        -- Update balance
+        UPDATE ACCOUNTS
+        SET balance = balance + p_amount
         WHERE account_no = p_account_no;
 
+        UPDATE ACCOUNTS_PARTITIONED
+        SET balance = balance + p_amount
+        WHERE account_no = p_account_no;
+
+        v_txn_id := SEQ_TXN_ID.NEXTVAL;
+
+        -- Ledger record in standard and Range-Partitioned tables
         INSERT INTO TRANSACTIONS (
             txn_id, to_account, txn_type, amount, status, remarks
         ) VALUES (
-            SEQ_TXN_ID.NEXTVAL, p_account_no, 'DEPOSIT', p_amount, 'SUCCESS', p_remarks
+            v_txn_id, p_account_no, 'DEPOSIT', p_amount, 'SUCCESS', p_remarks
+        );
+
+        INSERT INTO TRANSACTIONS_PARTITIONED (
+            txn_id, to_account, txn_type, amount, txn_date, status, remarks
+        ) VALUES (
+            v_txn_id, p_account_no, 'DEPOSIT', p_amount, TRUNC(SYSDATE), 'SUCCESS', p_remarks
         );
 
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('✔ Deposit of ₹' || p_amount || ' credited to Acc: ' || p_account_no || 
-                             ' | New Balance: ₹' || get_balance(p_account_no));
+        DBMS_OUTPUT.PUT_LINE('✔ Deposit successful: ₹' || p_amount || ' credited to Acc ' || p_account_no);
     EXCEPTION
+        WHEN e_resource_busy THEN
+            ROLLBACK;
+            RAISE_APPLICATION_ERROR(-20007, 'Account ' || p_account_no || ' is locked by another concurrent session. Try again.');
         WHEN OTHERS THEN
             ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('✘ Deposit failed: ' || SQLERRM);
             RAISE;
     END deposit;
 
     -- =================================================================
-    -- PROCEDURE 3: Withdraw money
+    -- PROCEDURE 3: Withdraw Money with Fraud Guard
     -- =================================================================
-    PROCEDURE withdraw(
+    PROCEDURE withdraw (
         p_account_no IN NUMBER,
         p_amount     IN NUMBER,
         p_remarks    IN VARCHAR2 DEFAULT 'Cash Withdrawal'
     ) IS
-        v_current_balance NUMBER;
+        v_current_bal NUMBER;
+        v_status      ACCOUNTS.status%TYPE;
+        v_txn_id      NUMBER;
     BEGIN
         IF p_amount <= 0 THEN
-            RAISE_APPLICATION_ERROR(-20004, 'Withdrawal amount must be greater than zero.');
+            RAISE_APPLICATION_ERROR(-20004, 'Withdrawal amount must be strictly greater than 0.');
         END IF;
 
-        IF NOT is_account_active(p_account_no) THEN
-            RAISE_APPLICATION_ERROR(-20003, 'Account ' || p_account_no || ' is not active.');
+        SELECT balance, status INTO v_current_bal, v_status
+        FROM ACCOUNTS
+        WHERE account_no = p_account_no
+        FOR UPDATE WAIT 5;
+
+        IF v_status <> 'ACTIVE' THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Account ' || p_account_no || ' is not ACTIVE.');
         END IF;
 
-        SELECT balance INTO v_current_balance 
-        FROM ACCOUNTS 
-        WHERE account_no = p_account_no 
-        FOR UPDATE; -- Row-level lock
-
-        IF v_current_balance < p_amount THEN
-            RAISE_APPLICATION_ERROR(-20002, 'Insufficient balance. Available: ₹' || v_current_balance || 
-                                           ', Requested: ₹' || p_amount);
+        IF v_current_bal < p_amount THEN
+            -- Log security event autonomously before raising error!
+            LOG_FRAUD_ALERT_AUTONOMOUS(
+                p_account_no       => p_account_no,
+                p_severity         => 'MEDIUM',
+                p_reason           => 'Overdraft attempt: balance ₹' || v_current_bal || ', tried ₹' || p_amount,
+                p_attempted_amount => p_amount
+            );
+            RAISE_APPLICATION_ERROR(-20002, 'Insufficient Funds: Current balance ₹' || v_current_bal || ', Requested: ₹' || p_amount);
         END IF;
 
-        UPDATE ACCOUNTS 
-        SET balance = balance - p_amount 
+        UPDATE ACCOUNTS
+        SET balance = balance - p_amount
         WHERE account_no = p_account_no;
+
+        UPDATE ACCOUNTS_PARTITIONED
+        SET balance = balance - p_amount
+        WHERE account_no = p_account_no;
+
+        v_txn_id := SEQ_TXN_ID.NEXTVAL;
 
         INSERT INTO TRANSACTIONS (
             txn_id, from_account, txn_type, amount, status, remarks
         ) VALUES (
-            SEQ_TXN_ID.NEXTVAL, p_account_no, 'WITHDRAWAL', p_amount, 'SUCCESS', p_remarks
+            v_txn_id, p_account_no, 'WITHDRAWAL', p_amount, 'SUCCESS', p_remarks
+        );
+
+        INSERT INTO TRANSACTIONS_PARTITIONED (
+            txn_id, from_account, txn_type, amount, txn_date, status, remarks
+        ) VALUES (
+            v_txn_id, p_account_no, 'WITHDRAWAL', p_amount, TRUNC(SYSDATE), 'SUCCESS', p_remarks
         );
 
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('✔ Withdrawal of ₹' || p_amount || ' debited from Acc: ' || p_account_no || 
-                             ' | Remaining Balance: ₹' || (v_current_balance - p_amount));
+        DBMS_OUTPUT.PUT_LINE('✔ Withdrawal successful: ₹' || p_amount || ' debited from Acc ' || p_account_no);
     EXCEPTION
         WHEN OTHERS THEN
             ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('✘ Withdrawal failed: ' || SQLERRM);
             RAISE;
     END withdraw;
 
     -- =================================================================
-    -- PROCEDURE 4: Fund Transfer (Safe Transaction with SAVEPOINT)
+    -- PROCEDURE 4: Atomic Transfer Funds with Deadlock-Free Lock Hierarchy
     -- =================================================================
-    PROCEDURE transfer_funds(
+    PROCEDURE transfer_funds (
         p_from_acc IN NUMBER,
         p_to_acc   IN NUMBER,
         p_amount   IN NUMBER,
         p_remarks  IN VARCHAR2 DEFAULT 'Fund Transfer'
     ) IS
-        v_from_balance NUMBER;
-        v_to_status    ACCOUNTS.status%TYPE;
+        v_first_acc   NUMBER;
+        v_second_acc  NUMBER;
+        v_sender_bal  NUMBER;
+        v_sender_stat ACCOUNTS.status%TYPE;
+        v_rcv_stat    ACCOUNTS.status%TYPE;
+        v_txn_id      NUMBER;
     BEGIN
-        -- 1. Basic validation
         IF p_from_acc = p_to_acc THEN
-            RAISE_APPLICATION_ERROR(-20005, 'Sender and Receiver account numbers cannot be the same.');
+            RAISE_APPLICATION_ERROR(-20005, 'Sender and receiver accounts cannot be identical.');
         END IF;
 
         IF p_amount <= 0 THEN
-            RAISE_APPLICATION_ERROR(-20004, 'Transfer amount must be greater than zero.');
+            RAISE_APPLICATION_ERROR(-20004, 'Transfer amount must be strictly greater than 0.');
         END IF;
 
-        -- Create a savepoint
-        SAVEPOINT sp_before_transfer;
+        -- Establish Transaction Savepoint for partial rollback capability
+        SAVEPOINT sp_transfer;
 
-        -- 2. Validate & lock sender account
-        BEGIN
-            SELECT balance INTO v_from_balance 
-            FROM ACCOUNTS 
-            WHERE account_no = p_from_acc AND status = 'ACTIVE' 
-            FOR UPDATE;
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(-20003, 'Sender account ' || p_from_acc || ' is inactive or invalid.');
-        END;
-
-        IF v_from_balance < p_amount THEN
-            RAISE_APPLICATION_ERROR(-20002, 'Transfer failed! Insufficient balance in Account ' || p_from_acc || 
-                                           '. Available: ₹' || v_from_balance);
+        -- ADBMS Concurrency Pattern: Strict Resource Ordering to prevent Deadlocks
+        -- Always lock lower account number first!
+        IF p_from_acc < p_to_acc THEN
+            v_first_acc  := p_from_acc;
+            v_second_acc := p_to_acc;
+        ELSE
+            v_first_acc  := p_to_acc;
+            v_second_acc := p_from_acc;
         END IF;
 
-        -- 3. Validate & lock receiver account
-        BEGIN
-            SELECT status INTO v_to_status 
-            FROM ACCOUNTS 
-            WHERE account_no = p_to_acc AND status = 'ACTIVE' 
-            FOR UPDATE;
-        EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(-20003, 'Receiver account ' || p_to_acc || ' is inactive or invalid.');
-        END;
+        -- Acquire locks in strict numerical order
+        SELECT status INTO v_sender_stat FROM ACCOUNTS WHERE account_no = v_first_acc FOR UPDATE WAIT 5;
+        SELECT status INTO v_rcv_stat    FROM ACCOUNTS WHERE account_no = v_second_acc FOR UPDATE WAIT 5;
 
-        -- 4. Execute atomic debit and credit
-        UPDATE ACCOUNTS 
-        SET balance = balance - p_amount 
-        WHERE account_no = p_from_acc;
+        -- Validate statuses
+        IF NOT is_account_active(p_from_acc) THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Sender account ' || p_from_acc || ' is not ACTIVE.');
+        END IF;
+        IF NOT is_account_active(p_to_acc) THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Beneficiary account ' || p_to_acc || ' is not ACTIVE.');
+        END IF;
 
-        UPDATE ACCOUNTS 
-        SET balance = balance + p_amount 
-        WHERE account_no = p_to_acc;
+        -- Check sender funds
+        SELECT balance INTO v_sender_bal FROM ACCOUNTS WHERE account_no = p_from_acc;
+        IF v_sender_bal < p_amount THEN
+            LOG_FRAUD_ALERT_AUTONOMOUS(
+                p_account_no       => p_from_acc,
+                p_severity         => 'MEDIUM',
+                p_reason           => 'Transfer failed: Insufficient balance ₹' || v_sender_bal || ', required ₹' || p_amount,
+                p_attempted_amount => p_amount
+            );
+            RAISE_APPLICATION_ERROR(-20002, 'Insufficient funds in sender account.');
+        END IF;
 
-        -- 5. Record Transaction Log
+        -- Execute atomic updates
+        UPDATE ACCOUNTS SET balance = balance - p_amount WHERE account_no = p_from_acc;
+        UPDATE ACCOUNTS SET balance = balance + p_amount WHERE account_no = p_to_acc;
+
+        UPDATE ACCOUNTS_PARTITIONED SET balance = balance - p_amount WHERE account_no = p_from_acc;
+        UPDATE ACCOUNTS_PARTITIONED SET balance = balance + p_amount WHERE account_no = p_to_acc;
+
+        v_txn_id := SEQ_TXN_ID.NEXTVAL;
+
         INSERT INTO TRANSACTIONS (
             txn_id, from_account, to_account, txn_type, amount, status, remarks
         ) VALUES (
-            SEQ_TXN_ID.NEXTVAL, p_from_acc, p_to_acc, 'TRANSFER', p_amount, 'SUCCESS', p_remarks
+            v_txn_id, p_from_acc, p_to_acc, 'TRANSFER', p_amount, 'SUCCESS', p_remarks
+        );
+
+        INSERT INTO TRANSACTIONS_PARTITIONED (
+            txn_id, from_account, to_account, txn_type, amount, txn_date, status, remarks
+        ) VALUES (
+            v_txn_id, p_from_acc, p_to_acc, 'TRANSFER', p_amount, TRUNC(SYSDATE), 'SUCCESS', p_remarks
         );
 
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('✔ Transfer of ₹' || p_amount || ' successful from Acc: ' || 
-                             p_from_acc || ' -> Acc: ' || p_to_acc);
+        DBMS_OUTPUT.PUT_LINE('✔ Transfer completed: ₹' || p_amount || ' sent from ' || p_from_acc || ' -> ' || p_to_acc);
     EXCEPTION
         WHEN OTHERS THEN
-            ROLLBACK TO sp_before_transfer;
-            -- Also record the failed transaction attempt
-            INSERT INTO TRANSACTIONS (
-                txn_id, from_account, to_account, txn_type, amount, status, remarks
-            ) VALUES (
-                SEQ_TXN_ID.NEXTVAL, p_from_acc, p_to_acc, 'TRANSFER', p_amount, 'FAILED', 
-                SUBSTR(SQLERRM, 1, 150)
+            ROLLBACK TO sp_transfer;
+            LOG_FRAUD_ALERT_AUTONOMOUS(
+                p_account_no       => p_from_acc,
+                p_severity         => 'HIGH',
+                p_reason           => 'Transfer transaction aborted and rolled back: ' || SQLERRM,
+                p_attempted_amount => p_amount
             );
-            COMMIT;
-            DBMS_OUTPUT.PUT_LINE('✘ Fund transfer failed: ' || SQLERRM);
+            COMMIT; -- Commit remaining autonomous logs
             RAISE;
     END transfer_funds;
 
     -- =================================================================
-    -- PROCEDURE 5: Batch Monthly Interest using EXPLICIT CURSOR
+    -- PROCEDURE 5: High-Performance Batch Processing using BULK COLLECT & FORALL
+    -- (Essential ADBMS Topic: Bulk Bindings drastically reduce context switches)
     -- =================================================================
-    PROCEDURE apply_monthly_interest(
-        p_annual_rate IN NUMBER DEFAULT 4.0
+    PROCEDURE bulk_apply_monthly_interest (
+        p_annual_rate IN NUMBER DEFAULT 4.5,
+        p_batch_size  IN NUMBER DEFAULT 500
     ) IS
-        -- Explicit Cursor to fetch all active savings accounts
         CURSOR c_savings IS
-            SELECT account_no, balance 
-            FROM ACCOUNTS 
-            WHERE account_type = 'SAVINGS' AND status = 'ACTIVE' AND balance > 0
-            FOR UPDATE OF balance;
+            SELECT account_no, balance
+            FROM ACCOUNTS
+            WHERE account_type = 'SAVINGS'
+              AND status = 'ACTIVE'
+              AND balance > 0;
 
-        v_acc_no      ACCOUNTS.account_no%TYPE;
-        v_bal         ACCOUNTS.balance%TYPE;
-        v_interest    NUMBER(12, 2);
-        v_count       NUMBER := 0;
-        v_total_paid  NUMBER := 0;
+        TYPE t_num_list IS TABLE OF NUMBER;
+        v_acc_list      t_num_list;
+        v_bal_list      t_num_list;
+        v_interest_list t_num_list := t_num_list();
+
+        v_monthly_rate  NUMBER := (p_annual_rate / 100.0) / 12.0;
+        v_total_updated NUMBER := 0;
+        v_total_payout  NUMBER := 0;
     BEGIN
-        DBMS_OUTPUT.PUT_LINE('=====================================================');
-        DBMS_OUTPUT.PUT_LINE('   APPLYING MONTHLY INTEREST (' || p_annual_rate || '% P.A.)');
-        DBMS_OUTPUT.PUT_LINE('=====================================================');
-
         OPEN c_savings;
         LOOP
-            FETCH c_savings INTO v_acc_no, v_bal;
-            EXIT WHEN c_savings%NOTFOUND;
+            -- Bulk collect rows into memory array up to batch size
+            FETCH c_savings BULK COLLECT INTO v_acc_list, v_bal_list LIMIT p_batch_size;
+            EXIT WHEN v_acc_list.COUNT = 0;
 
-            -- Calculate 1 month interest: (Balance * Rate / 100) / 12
-            v_interest := ROUND((v_bal * (p_annual_rate / 100)) / 12, 2);
+            v_interest_list.EXTEND(v_acc_list.COUNT);
 
-            IF v_interest > 0 THEN
-                -- Update account balance using CURRENT OF cursor
-                UPDATE ACCOUNTS 
-                SET balance = balance + v_interest 
-                WHERE CURRENT OF c_savings;
+            -- Calculate interest in PGA memory (No SQL engine context switch)
+            FOR i IN 1 .. v_acc_list.COUNT LOOP
+                v_interest_list(i) := ROUND(v_bal_list(i) * v_monthly_rate, 2);
+                v_total_payout     := v_total_payout + v_interest_list(i);
+            END LOOP;
 
-                -- Record Interest transaction
+            -- High speed bulk update using FORALL
+            FORALL i IN 1 .. v_acc_list.COUNT
+                UPDATE ACCOUNTS
+                SET balance = balance + v_interest_list(i)
+                WHERE account_no = v_acc_list(i);
+
+            -- Bulk insert transaction records
+            FORALL i IN 1 .. v_acc_list.COUNT
                 INSERT INTO TRANSACTIONS (
                     txn_id, to_account, txn_type, amount, status, remarks
                 ) VALUES (
-                    SEQ_TXN_ID.NEXTVAL, v_acc_no, 'INTEREST', v_interest, 'SUCCESS', 
-                    'Monthly Interest @ ' || p_annual_rate || '%'
+                    SEQ_TXN_ID.NEXTVAL,
+                    v_acc_list(i),
+                    'INTEREST',
+                    v_interest_list(i),
+                    'SUCCESS',
+                    'Monthly Interest Credit @ ' || p_annual_rate || '%'
                 );
 
-                v_count := v_count + 1;
-                v_total_paid := v_total_paid + v_interest;
-                DBMS_OUTPUT.PUT_LINE('Acc ' || v_acc_no || ' credited with ₹' || v_interest);
-            END IF;
+            v_total_updated := v_total_updated + v_acc_list.COUNT;
+            COMMIT; -- Commit batch chunk
         END LOOP;
         CLOSE c_savings;
 
-        COMMIT;
-        DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------');
-        DBMS_OUTPUT.PUT_LINE('Interest applied to ' || v_count || ' accounts. Total Interest Paid: ₹' || v_total_paid);
+        DBMS_OUTPUT.PUT_LINE('✔ Bulk Interest Processed: ' || v_total_updated || ' accounts updated | Total Interest Paid: ₹' || v_total_payout);
     EXCEPTION
         WHEN OTHERS THEN
-            IF c_savings%ISOPEN THEN
-                CLOSE c_savings;
-            END IF;
+            IF c_savings%ISOPEN THEN CLOSE c_savings; END IF;
             ROLLBACK;
-            DBMS_OUTPUT.PUT_LINE('✘ Failed to apply monthly interest: ' || SQLERRM);
             RAISE;
-    END apply_monthly_interest;
+    END bulk_apply_monthly_interest;
 
     -- =================================================================
-    -- PROCEDURE 6: Print Mini-Statement using CURSOR & DBMS_OUTPUT
+    -- PROCEDURE 6: Bulk Service Fee Deduction
     -- =================================================================
-    PROCEDURE print_mini_statement(
-        p_account_no IN NUMBER,
-        p_limit      IN NUMBER DEFAULT 5
+    PROCEDURE bulk_deduct_service_fee (
+        p_fee_amount       IN NUMBER DEFAULT 150.00,
+        p_min_balance_tier IN NUMBER DEFAULT 2000.00
     ) IS
-        CURSOR c_txns IS
-            SELECT txn_id, txn_type, amount, status, 
-                   TO_CHAR(txn_date, 'YYYY-MM-DD HH24:MI') AS f_date, remarks
-            FROM (
-                SELECT * FROM TRANSACTIONS 
-                WHERE from_account = p_account_no OR to_account = p_account_no
-                ORDER BY txn_date DESC
-            )
-            WHERE ROWNUM <= p_limit;
+        CURSOR c_low_bal IS
+            SELECT account_no, balance
+            FROM ACCOUNTS
+            WHERE balance < p_min_balance_tier
+              AND status = 'ACTIVE'
+              AND balance >= p_fee_amount;
 
-        v_holder ACCOUNTS.holder_name%TYPE;
-        v_bal    ACCOUNTS.balance%TYPE;
+        TYPE t_num_list IS TABLE OF NUMBER;
+        v_acc_list t_num_list;
+        v_bal_list t_num_list;
     BEGIN
-        SELECT holder_name, balance INTO v_holder, v_bal 
-        FROM ACCOUNTS 
-        WHERE account_no = p_account_no;
+        OPEN c_low_bal;
+        FETCH c_low_bal BULK COLLECT INTO v_acc_list, v_bal_list;
+        CLOSE c_low_bal;
 
-        DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------');
-        DBMS_OUTPUT.PUT_LINE('                        MINI STATEMENT');
-        DBMS_OUTPUT.PUT_LINE(' Account No   : ' || p_account_no);
-        DBMS_OUTPUT.PUT_LINE(' Account Holder: ' || v_holder);
-        DBMS_OUTPUT.PUT_LINE(' Current Balance: ₹' || v_bal);
-        DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------');
-        DBMS_OUTPUT.PUT_LINE(RPAD('TXN ID', 10) || RPAD('TYPE', 12) || RPAD('AMOUNT', 12) || 
-                             RPAD('STATUS', 10) || RPAD('DATE', 18) || 'REMARKS');
-        DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------');
+        IF v_acc_list.COUNT > 0 THEN
+            FORALL i IN 1 .. v_acc_list.COUNT SAVE EXCEPTIONS
+                UPDATE ACCOUNTS
+                SET balance = balance - p_fee_amount
+                WHERE account_no = v_acc_list(i);
 
-        FOR rec IN c_txns LOOP
-            DBMS_OUTPUT.PUT_LINE(
-                RPAD(rec.txn_id, 10) || 
-                RPAD(rec.txn_type, 12) || 
-                RPAD('₹' || rec.amount, 12) || 
-                RPAD(rec.status, 10) || 
-                RPAD(rec.f_date, 18) || 
-                rec.remarks
-            );
-        END LOOP;
-        DBMS_OUTPUT.PUT_LINE('------------------------------------------------------------------------');
+            FORALL i IN 1 .. v_acc_list.COUNT
+                INSERT INTO TRANSACTIONS (
+                    txn_id, from_account, txn_type, amount, status, remarks
+                ) VALUES (
+                    SEQ_TXN_ID.NEXTVAL,
+                    v_acc_list(i),
+                    'FEE',
+                    p_fee_amount,
+                    'SUCCESS',
+                    'Monthly Low Balance Maintenance Fee'
+                );
+
+            COMMIT;
+            DBMS_OUTPUT.PUT_LINE('✔ Bulk maintenance charges applied to ' || v_acc_list.COUNT || ' accounts.');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('ℹ No accounts eligible for service fee deduction.');
+        END IF;
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            DBMS_OUTPUT.PUT_LINE('✘ Account ' || p_account_no || ' not found.');
-    END print_mini_statement;
+        WHEN OTHERS THEN
+            ROLLBACK;
+            RAISE;
+    END bulk_deduct_service_fee;
 
-END BANKING_PKG;
+    -- =================================================================
+    -- PROCEDURE 7: Distributed 2-Phase Commit (2PC) Banking Simulator
+    -- =================================================================
+    PROCEDURE simulate_distributed_transfer (
+        p_source_branch IN VARCHAR2,
+        p_target_branch IN VARCHAR2,
+        p_from_acc      IN NUMBER,
+        p_to_acc        IN NUMBER,
+        p_amount        IN NUMBER,
+        p_simulate_fail IN VARCHAR2 DEFAULT 'NONE'
+    ) IS
+        v_gxid    VARCHAR2(64);
+        v_dtxn_id NUMBER;
+    BEGIN
+        v_gxid    := 'GTXN-' || TO_CHAR(SYSTIMESTAMP, 'YYYYMMDD-HH24MISS-FF4');
+        v_dtxn_id := SEQ_DTXN_ID.NEXTVAL;
+
+        -- -------------------------------------------------------------
+        -- PHASE 1: PREPARE (Voting & Resource Lock verification)
+        -- -------------------------------------------------------------
+        IF p_simulate_fail = 'PREPARE_FAIL' THEN
+            -- Simulate network partition or branch node crash
+            INSERT INTO DISTRIBUTED_TXN_LOG (
+                dtxn_id, global_xid, source_branch, target_branch,
+                from_account, to_account, amount, phase_1_status, phase_2_status
+            ) VALUES (
+                v_dtxn_id, v_gxid, p_source_branch, p_target_branch,
+                p_from_acc, p_to_acc, p_amount, 'VOTE_ABORT', 'GLOBAL_ROLLED_BACK'
+            );
+            COMMIT;
+
+            LOG_FRAUD_ALERT_AUTONOMOUS(
+                p_account_no       => p_from_acc,
+                p_severity         => 'CRITICAL',
+                p_reason           => 'Distributed 2PC Protocol: Target Branch ' || p_target_branch || ' voted ABORT during Phase 1.',
+                p_attempted_amount => p_amount
+            );
+
+            RAISE_APPLICATION_ERROR(-20015, 'Distributed 2PC Phase 1 Failed: Branch ' || p_target_branch || ' reported node unavailable. Global Transaction Aborted.');
+        END IF;
+
+        -- Record Phase 1 Success
+        INSERT INTO DISTRIBUTED_TXN_LOG (
+            dtxn_id, global_xid, source_branch, target_branch,
+            from_account, to_account, amount, phase_1_status, phase_2_status
+        ) VALUES (
+            v_dtxn_id, v_gxid, p_source_branch, p_target_branch,
+            p_from_acc, p_to_acc, p_amount, 'VOTE_COMMIT', 'PREPARED'
+        );
+
+        -- -------------------------------------------------------------
+        -- PHASE 2: GLOBAL COMMIT
+        -- -------------------------------------------------------------
+        transfer_funds(p_from_acc, p_to_acc, p_amount, 'Distributed 2PC Transfer: ' || v_gxid);
+
+        UPDATE DISTRIBUTED_TXN_LOG
+        SET phase_2_status = 'GLOBAL_COMMITTED'
+        WHERE dtxn_id = v_dtxn_id;
+
+        COMMIT;
+        DBMS_OUTPUT.PUT_LINE('✔ Distributed 2PC Transaction successfully committed! Global XID: ' || v_gxid);
+    EXCEPTION
+        WHEN OTHERS THEN
+            ROLLBACK;
+            UPDATE DISTRIBUTED_TXN_LOG
+            SET phase_2_status = 'GLOBAL_ROLLED_BACK'
+            WHERE dtxn_id = v_dtxn_id;
+            COMMIT;
+            RAISE;
+    END simulate_distributed_transfer;
+
+    -- =================================================================
+    -- FUNCTION: Pipelined Mini Statement
+    -- =================================================================
+    FUNCTION stream_mini_statement (
+        p_account_no IN NUMBER,
+        p_limit      IN NUMBER DEFAULT 10
+    ) RETURN t_statement_table PIPELINED IS
+        v_out_row t_statement_row;
+        CURSOR c_txns IS
+            SELECT 
+                txn_id,
+                TO_CHAR(txn_date, 'YYYY-MM-DD HH24:MI:SS') AS dt_str,
+                txn_type,
+                amount,
+                NVL(to_account, from_account) AS counterparty,
+                remarks
+            FROM TRANSACTIONS
+            WHERE from_account = p_account_no OR to_account = p_account_no
+            ORDER BY txn_id DESC;
+        v_count NUMBER := 0;
+    BEGIN
+        FOR r IN c_txns LOOP
+            v_count := v_count + 1;
+            EXIT WHEN v_count > p_limit;
+
+            v_out_row.txn_id       := r.txn_id;
+            v_out_row.txn_date     := r.dt_str;
+            v_out_row.txn_type     := r.txn_type;
+            v_out_row.amount       := r.amount;
+            v_out_row.counterparty := r.counterparty;
+            v_out_row.remarks      := r.remarks;
+
+            PIPE ROW(v_out_row); -- Stream row to client without caching entire table
+        END LOOP;
+        RETURN;
+    END stream_mini_statement;
+
+END ADBMS_BANKING_PKG;
 /
